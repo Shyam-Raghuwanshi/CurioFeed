@@ -10,8 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mendable/firecrawl-js": "^4.4.1",
     "@tanstack/react-query": "^5.90.5",
     "@tanstack/react-router": "^1.133.36",
+    "axios": "^1.13.1",
     "convex": "^1.18.0",
     "lucide-react": "^0.460.0",
     "react": "^19.1.1",
