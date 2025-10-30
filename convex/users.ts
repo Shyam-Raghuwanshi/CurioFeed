@@ -1,17 +1,22 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
-// Create a new user
+// Create a new user (called when user signs up through Clerk)
 export const createUser = mutation({
   args: {
-    email: v.string(),
-    name: v.string(),
+    clerkId: v.string(),
     selectedInterests: v.array(v.string()),
   },
   handler: async (ctx, args) => {
+    // Check if user is authenticated
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
     const existingUser = await ctx.db
       .query("users")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
       .first();
 
     if (existingUser) {
@@ -20,8 +25,7 @@ export const createUser = mutation({
 
     const now = Date.now();
     const userId = await ctx.db.insert("users", {
-      email: args.email,
-      name: args.name,
+      clerkId: args.clerkId,
       selectedInterests: args.selectedInterests,
       createdAt: now,
       lastActiveAt: now,
@@ -34,11 +38,24 @@ export const createUser = mutation({
 // Update user interests
 export const updateUserInterests = mutation({
   args: {
-    userId: v.id("users"),
     selectedInterests: v.array(v.string()),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.userId, {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    await ctx.db.patch(user._id, {
       selectedInterests: args.selectedInterests,
       lastActiveAt: Date.now(),
     });
@@ -47,31 +64,49 @@ export const updateUserInterests = mutation({
   },
 });
 
-// Get user by email
-export const getUserByEmail = query({
-  args: { email: v.string() },
-  handler: async (ctx, args) => {
+// Get current user
+export const getCurrentUser = query({
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
     return await ctx.db
       .query("users")
-      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
       .first();
   },
 });
 
-// Get user by ID
-export const getUserById = query({
-  args: { userId: v.id("users") },
+// Get user by Clerk ID
+export const getUserByClerkId = query({
+  args: { clerkId: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.userId);
+    return await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .first();
   },
 });
 
 // Update user last active time
 export const updateLastActive = mutation({
-  args: { userId: v.id("users") },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.userId, {
-      lastActiveAt: Date.now(),
-    });
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    if (user) {
+      await ctx.db.patch(user._id, {
+        lastActiveAt: Date.now(),
+      });
+    }
   },
 });
