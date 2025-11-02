@@ -27,6 +27,7 @@ export const createUser = mutation({
         email: args.email,
         interests: args.interests,
         defaultInterests: args.defaultInterests,
+        onboardingCompleted: true, // Mark as completed when interests are saved
         createdAt: now,
       });
 
@@ -37,6 +38,7 @@ export const createUser = mutation({
         email: args.email,
         interests: args.interests,
         defaultInterests: args.defaultInterests,
+        onboardingCompleted: true,
         createdAt: now,
       };
     } catch (error) {
@@ -52,6 +54,7 @@ export const updateUserInterests = mutation({
     userId: v.string(),
     interests: v.array(v.string()),
     defaultInterests: v.array(v.string()),
+    onboardingCompleted: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     try {
@@ -67,6 +70,7 @@ export const updateUserInterests = mutation({
       await ctx.db.patch(user._id, {
         interests: args.interests,
         defaultInterests: args.defaultInterests,
+        onboardingCompleted: args.onboardingCompleted ?? true, // Default to true when updating interests
       });
 
       // Return the updated user object
@@ -76,11 +80,87 @@ export const updateUserInterests = mutation({
         email: user.email,
         interests: args.interests,
         defaultInterests: args.defaultInterests,
+        onboardingCompleted: args.onboardingCompleted ?? true,
         createdAt: user.createdAt,
       };
     } catch (error) {
       console.error("Error updating user interests:", error);
       throw new Error(`Failed to update user interests: ${error}`);
+    }
+  },
+});
+
+// Mark onboarding as completed
+export const markOnboardingCompleted = mutation({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+        .first();
+
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      await ctx.db.patch(user._id, {
+        onboardingCompleted: true,
+      });
+
+      return {
+        _id: user._id,
+        userId: args.userId,
+        email: user.email,
+        interests: user.interests,
+        defaultInterests: user.defaultInterests,
+        onboardingCompleted: true,
+        createdAt: user.createdAt,
+      };
+    } catch (error) {
+      console.error("Error marking onboarding as completed:", error);
+      throw new Error(`Failed to mark onboarding as completed: ${error}`);
+    }
+  },
+});
+
+// Migration function to update existing users with onboardingCompleted field
+export const migrateExistingUsers = mutation({
+  handler: async (ctx) => {
+    try {
+      // Get all users that don't have the onboardingCompleted field or have it as undefined
+      const allUsers = await ctx.db
+        .query("users")
+        .collect();
+
+      let updatedCount = 0;
+
+      for (const user of allUsers) {
+        // If user has interests and the onboardingCompleted field is missing or undefined
+        if (user.onboardingCompleted === undefined && user.interests && user.interests.length > 0) {
+          await ctx.db.patch(user._id, {
+            onboardingCompleted: true, // Mark as completed if they have interests
+          });
+          updatedCount++;
+        } else if (user.onboardingCompleted === undefined) {
+          await ctx.db.patch(user._id, {
+            onboardingCompleted: false, // Mark as not completed if no interests
+          });
+          updatedCount++;
+        }
+      }
+
+      console.log(`Migration completed: Updated ${updatedCount} users`);
+      return {
+        success: true,
+        updatedCount,
+        message: `Successfully updated ${updatedCount} user records with onboardingCompleted field`,
+      };
+    } catch (error) {
+      console.error("Migration failed:", error);
+      throw new Error(`Migration failed: ${error}`);
     }
   },
 });

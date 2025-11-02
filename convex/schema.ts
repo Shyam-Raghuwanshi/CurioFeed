@@ -7,6 +7,7 @@ export default defineSchema({
     email: v.string(),
     interests: v.array(v.string()), // Currently selected interests
     defaultInterests: v.array(v.string()), // Original interests from signup
+    onboardingCompleted: v.optional(v.boolean()), // Whether user has completed onboarding
     createdAt: v.number(), // Timestamp
   }).index("by_user_id", ["userId"]),
 

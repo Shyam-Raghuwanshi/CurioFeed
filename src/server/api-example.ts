@@ -7,7 +7,7 @@
 import { crawlLinksForInterest, type Interest } from './index';
 
 // Mock json response helper for example purposes
-const json = (data: any, options?: { status?: number }) => ({
+const json = (data: Record<string, unknown>, options?: { status?: number }) => ({
   ...data,
   status: options?.status || 200,
 });

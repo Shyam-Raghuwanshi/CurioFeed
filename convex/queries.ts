@@ -28,12 +28,12 @@ export const getEngagementHistory = query({
     const limit = args.limit ?? 10;
     
     try {
-      let query = ctx.db
+      let convexQuery = ctx.db
         .query("engagementHistory")
         .withIndex("by_user_and_timestamp", (q) => q.eq("userId", args.userId))
         .order("desc");
 
-      const results = await query.take(limit * 2); // Get more to filter if needed
+      const results = await convexQuery.take(limit * 2); // Get more to filter if needed
       
       // Filter by interest if provided
       if (args.interest) {

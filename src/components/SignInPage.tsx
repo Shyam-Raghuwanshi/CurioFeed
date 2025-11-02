@@ -1,6 +1,10 @@
 import { SignIn } from "@clerk/clerk-react";
+import { useAuthPageRedirect } from "../hooks/useOnboardingRedirect";
 
 export default function SignInPage() {
+  // Handle redirects after successful sign-in
+  useAuthPageRedirect();
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full space-y-8">
@@ -19,7 +23,6 @@ export default function SignInPage() {
               card: "shadow-lg"
             }
           }}
-          redirectUrl="/feed"
           signUpUrl="/sign-up"
         />
       </div>

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConvexReactClient } from "convex/react";
 import { ClerkProvider, useAuth } from "@clerk/clerk-react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
+import { OnboardingProvider } from "./context/OnboardingContext";
 
 const queryClient = new QueryClient();
 
@@ -22,9 +23,11 @@ function App() {
   return (
     <ClerkProvider publishableKey={clerkPK}>
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-        <QueryClientProvider client={queryClient}>
-          <RouterProvider router={router} />
-        </QueryClientProvider>
+        <OnboardingProvider>
+          <QueryClientProvider client={queryClient}>
+            <RouterProvider router={router} />
+          </QueryClientProvider>
+        </OnboardingProvider>
       </ConvexProviderWithClerk>
     </ClerkProvider>
   );

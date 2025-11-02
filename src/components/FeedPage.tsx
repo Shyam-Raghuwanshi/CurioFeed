@@ -1,6 +1,7 @@
 import { UserButton, useUser } from "@clerk/clerk-react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import MigrationHelper from "./MigrationHelper";
 
 export default function FeedPage() {
   const { user } = useUser();
@@ -54,7 +55,7 @@ export default function FeedPage() {
           <div className="mb-6">
             <h3 className="text-lg font-medium text-gray-900 mb-3">Your Interests:</h3>
             <div className="flex flex-wrap gap-2">
-              {currentUser.selectedInterests.map((interest) => (
+              {currentUser.interests.map((interest: string) => (
                 <span
                   key={interest}
                   className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium"
@@ -78,6 +79,9 @@ export default function FeedPage() {
           </div>
         </div>
       </main>
+      
+      {/* Temporary migration helper - remove after migration */}
+      <MigrationHelper />
     </div>
   );
 }

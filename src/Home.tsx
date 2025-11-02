@@ -1,28 +1,25 @@
 
 import { useAuth } from "@clerk/clerk-react";
-import { useQuery } from "convex/react";
-import { api } from "../convex/_generated/api";
-import { useEffect } from "react";
+import { useAutoRedirect } from "./hooks/useOnboardingRedirect";
 
 function Home() {
   const { isSignedIn, isLoaded } = useAuth();
-  const currentUser = useQuery(api.users.getCurrentUser);
-
-  useEffect(() => {
-    if (!isLoaded) return;
-
-    if (isSignedIn) {
-      // Check if user has completed onboarding
-      if (currentUser === null) {
-        window.location.href = "/onboarding";
-      } else if (currentUser) {
-        window.location.href = "/feed";
-      }
-    }
-  }, [isSignedIn, isLoaded, currentUser]);
+  
+  // Automatically redirect based on onboarding status
+  useAutoRedirect();
 
   // Show loading while checking auth
   if (!isLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // If user is signed in, they will be redirected automatically
+  // This page is mainly for unauthenticated users
+  if (isSignedIn) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
