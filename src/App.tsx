@@ -1,6 +1,6 @@
 
-import { RouterProvider } from "react-router-dom";
-import router from "./router";
+import { RouterProvider } from "@tanstack/react-router";
+import { router } from "./tanstack-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConvexReactClient } from "convex/react";
 import { ClerkProvider, useAuth } from "@clerk/clerk-react";
