@@ -6,6 +6,7 @@ import { ConvexReactClient } from "convex/react";
 import { ClerkProvider, useAuth } from "@clerk/clerk-react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { OnboardingProvider } from "./context/OnboardingContext";
+import { ToastContainer } from "./components/Toast";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ function App() {
         <OnboardingProvider>
           <QueryClientProvider client={queryClient}>
             <RouterProvider router={router} />
+            <ToastContainer />
           </QueryClientProvider>
         </OnboardingProvider>
       </ConvexProviderWithClerk>
