@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import { INTEREST_OPTIONS } from "../utils/constants";
 import type { Interest } from "../utils/constants";
-import MigrationHelper from "./MigrationHelper";
 import InfiniteFeed from "./InfiniteFeed";
 import type { EngagementData } from "./FeedCard";
 
@@ -504,9 +503,6 @@ export default function FeedPage() {
           </div>
         </div>
       )}
-      
-      {/* Temporary migration helper - remove after migration */}
-      <MigrationHelper />
     </div>
   );
 }
