@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useRef, useCallback } from 'react';
 import { RefreshCw, AlertCircle } from 'lucide-react';
 import FeedCard, { type EngagementData } from './FeedCard';
 import FeedCardSkeleton from './FeedCardSkeleton';
-import { useFeedFetch } from '../hooks/useFeedFetch';
+import { useInfiniteFeed } from '../hooks/useInfiniteFeed';
 import { type SmartFeedResult, type EngagementData as EngagementAnalysis } from '../server/smartRefetch';
-import { MAX_CARDS_PER_BATCH, type Interest } from '../utils/constants';
+import { type Interest } from '../utils/constants';
 
 // TypeScript interfaces
 export interface InfiniteFeedProps {
@@ -16,13 +16,6 @@ export interface InfiniteFeedProps {
   onDislike: (url: string) => void;
 }
 
-interface InfiniteFeedState {
-  displayedCards: SmartFeedResult[];
-  hasMore: boolean;
-  isLoadingMore: boolean;
-  totalDisplayed: number;
-}
-
 const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
   userId,
   currentInterest,
@@ -31,162 +24,33 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
   onSave,
   onDislike,
 }) => {
-  // Use the custom hook for fetching feed data
-  const { data: feedData, isLoading, error, refetch, isRefetching } = useFeedFetch(
-    currentInterest,
-    userId,
-    engagementData,
-    { totalItems: 50, enabled: true } // Fetch more items to support infinite scroll
-  );
-
-  // State for managing infinite scroll
-  const [feedState, setFeedState] = useState<InfiniteFeedState>({
-    displayedCards: [],
-    hasMore: true,
-    isLoadingMore: false,
-    totalDisplayed: 0,
+  // Use the infinite feed hook
+  const { 
+    data: feedData, 
+    isLoading, 
+    isLoadingMore, 
+    error, 
+    hasMore, 
+    loadMore, 
+    refresh 
+  } = useInfiniteFeed(currentInterest, userId, engagementData, {
+    itemsPerPage: 10,
+    enabled: true
   });
-
-  // Track the last interest to detect changes
-  const lastInterestRef = useRef<Interest>(currentInterest);
-  const initializedRef = useRef(false);
-  const lastDataLengthRef = useRef(0);
 
   // Refs for intersection observer
   const observer = useRef<IntersectionObserver | null>(null);
 
-  // Reset displayed cards only when interest changes or initial load
-  useEffect(() => {
-    const interestChanged = lastInterestRef.current !== currentInterest;
-    
-    if (interestChanged) {
-      console.log('Interest changed from', lastInterestRef.current, 'to', currentInterest);
-      lastInterestRef.current = currentInterest;
-      initializedRef.current = false;
-      lastDataLengthRef.current = 0;
-      
-      // Reset state for new interest
-      setFeedState({
-        displayedCards: [],
-        hasMore: true,
-        isLoadingMore: false,
-        totalDisplayed: 0,
-      });
-    }
-  }, [currentInterest]);
-
-  // Initialize displayed cards when data arrives (only for initial load or interest change)
-  useEffect(() => {
-    if (feedData.length > 0 && !initializedRef.current) {
-      console.log('Initializing feed with', feedData.length, 'items');
-      const initialCards = feedData.slice(0, MAX_CARDS_PER_BATCH);
-      setFeedState({
-        displayedCards: initialCards,
-        hasMore: feedData.length > MAX_CARDS_PER_BATCH,
-        isLoadingMore: false,
-        totalDisplayed: initialCards.length,
-      });
-      lastDataLengthRef.current = feedData.length;
-      initializedRef.current = true;
-    }
-  }, [feedData]);
-
-  // Handle appending new data from refetch
-  useEffect(() => {
-    if (feedData.length > lastDataLengthRef.current && initializedRef.current) {
-      console.log('New data received from refetch. Old length:', lastDataLengthRef.current, 'New length:', feedData.length);
-      
-      // Get only the new items
-      const newItems = feedData.slice(lastDataLengthRef.current);
-      
-      if (newItems.length > 0) {
-        setFeedState(prev => {
-          // Filter out any duplicates by URL
-          const existingUrls = new Set(prev.displayedCards.map(card => card.url));
-          const uniqueNewItems = newItems.filter(item => !existingUrls.has(item.url));
-          
-          if (uniqueNewItems.length > 0) {
-            console.log('Appending', uniqueNewItems.length, 'new unique items to feed');
-            return {
-              ...prev,
-              displayedCards: [...prev.displayedCards, ...uniqueNewItems],
-              hasMore: true, // We have new data, so there might be more
-              isLoadingMore: false,
-              totalDisplayed: prev.totalDisplayed + uniqueNewItems.length,
-            };
-          }
-          
-          return { ...prev, isLoadingMore: false };
-        });
-      }
-      
-      lastDataLengthRef.current = feedData.length;
-    }
-  }, [feedData.length]);
-
-  // Load more cards function
-  const loadMoreCards = useCallback(() => {
-    if (feedState.isLoadingMore || !feedState.hasMore || isLoading || !initializedRef.current) {
-      return;
-    }
-
-    console.log('Loading more cards. Current displayed:', feedState.totalDisplayed, 'Total available:', feedData.length);
-
-    // Check if we have more data from the current fetch
-    if (feedState.totalDisplayed < feedData.length) {
-      setFeedState(prev => ({ ...prev, isLoadingMore: true }));
-
-      // Simulate loading delay for better UX
-      setTimeout(() => {
-        const nextBatch = feedData.slice(
-          feedState.totalDisplayed,
-          feedState.totalDisplayed + MAX_CARDS_PER_BATCH
-        );
-
-        if (nextBatch.length > 0) {
-          setFeedState(prev => ({
-            displayedCards: [...prev.displayedCards, ...nextBatch],
-            hasMore: feedState.totalDisplayed + nextBatch.length < feedData.length,
-            isLoadingMore: false,
-            totalDisplayed: prev.totalDisplayed + nextBatch.length,
-          }));
-          console.log('Added', nextBatch.length, 'more cards. Total now:', feedState.totalDisplayed + nextBatch.length);
-        } else {
-          setFeedState(prev => ({
-            ...prev,
-            isLoadingMore: false,
-            hasMore: false,
-          }));
-        }
-      }, 500);
-    } else {
-      // We've shown all available data, try to get more from server
-      console.log('All current data displayed, fetching more from server...');
-      setFeedState(prev => ({ ...prev, isLoadingMore: true }));
-      
-      refetch().then(() => {
-        // The useEffect above will handle adding the new data
-        setFeedState(prev => ({ ...prev, isLoadingMore: false }));
-      }).catch(() => {
-        setFeedState(prev => ({
-          ...prev,
-          isLoadingMore: false,
-          hasMore: false,
-        }));
-      });
-    }
-  }, [feedState.isLoadingMore, feedState.hasMore, feedState.totalDisplayed, isLoading, feedData, refetch]);
-
   // Intersection observer callback for infinite scroll
   const lastCardElementRef = useCallback((node: HTMLDivElement | null) => {
-    if (feedState.isLoadingMore || isLoading || !initializedRef.current) return;
+    if (isLoadingMore || isLoading) return;
     
     if (observer.current) observer.current.disconnect();
     
     observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && feedState.hasMore && !feedState.isLoadingMore) {
+      if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
         console.log('Last card visible, loading more...');
-        loadMoreCards();
+        loadMore();
       }
     }, {
       threshold: 0.1, // Trigger when 10% of the last card is visible
@@ -194,26 +58,20 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
     });
     
     if (node) observer.current.observe(node);
-  }, [feedState.isLoadingMore, feedState.hasMore, isLoading, loadMoreCards]);
+  }, [isLoadingMore, hasMore, isLoading, loadMore]);
 
   // Handle refresh
   const handleRefresh = useCallback(() => {
-    setFeedState({
-      displayedCards: [],
-      hasMore: true,
-      isLoadingMore: false,
-      totalDisplayed: 0,
-    });
-    refetch();
-  }, [refetch]);
+    refresh();
+  }, [refresh]);
 
   // Handle retry
   const handleRetry = useCallback(() => {
-    refetch();
-  }, [refetch]);
+    refresh();
+  }, [refresh]);
 
   // Render loading state
-  if (isLoading && feedState.displayedCards.length === 0) {
+  if (isLoading && feedData.length === 0) {
     return (
       <div className="max-w-4xl mx-auto p-4">
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-1">
@@ -224,7 +82,7 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
   }
 
   // Render error state (no cards loaded)
-  if (error && feedState.displayedCards.length === 0) {
+  if (error && feedData.length === 0) {
     return (
       <div className="max-w-4xl mx-auto p-4">
         <div className="text-center py-12">
@@ -248,7 +106,7 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
   }
 
   // Render empty state
-  if (!isLoading && feedState.displayedCards.length === 0) {
+  if (!isLoading && feedData.length === 0) {
     return (
       <div className="max-w-4xl mx-auto p-4">
         <div className="text-center py-12">
@@ -276,12 +134,12 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
       {/* Feed Stats */}
       <div className="mb-6 text-center">
         <p className="text-sm text-gray-600">
-          Showing {feedState.totalDisplayed} items for <span className="font-semibold">{currentInterest}</span>
-          {isRefetching && <span className="ml-2 text-blue-600">Refreshing...</span>}
+          Showing {feedData.length} items for <span className="font-semibold">{currentInterest}</span>
+          {isLoading && <span className="ml-2 text-blue-600">Loading...</span>}
         </p>
         <button
           onClick={handleRefresh}
-          disabled={isLoading || isRefetching}
+          disabled={isLoading}
           className="mt-2 text-sm text-blue-600 hover:text-blue-700 transition-colors duration-200 disabled:text-gray-400"
         >
           Refresh Feed
@@ -290,8 +148,8 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
 
       {/* Feed Cards */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-1">
-        {feedState.displayedCards.map((card: SmartFeedResult, index: number) => {
-          const isLastCard = index === feedState.displayedCards.length - 1;
+        {feedData.map((card: SmartFeedResult, index: number) => {
+          const isLastCard = index === feedData.length - 1;
           
           return (
             <div
@@ -304,6 +162,8 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
                 source={card.source}
                 excerpt={card.excerpt}
                 imageUrl={card.imageUrl}
+                interest={currentInterest}
+                userId={userId}
                 onEngagement={onEngagement}
                 onSave={onSave}
                 onDislike={onDislike}
@@ -314,14 +174,14 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
       </div>
 
       {/* Loading More State */}
-      {feedState.isLoadingMore && (
+      {isLoadingMore && (
         <div className="mt-6">
           <FeedCardSkeleton count={3} />
         </div>
       )}
 
       {/* Load More Error */}
-      {error && feedState.displayedCards.length > 0 && (
+      {error && feedData.length > 0 && (
         <div className="mt-6 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 text-red-700 rounded-lg">
             <AlertCircle size={16} />
@@ -337,7 +197,7 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
       )}
 
       {/* End of Feed */}
-      {!feedState.hasMore && feedState.displayedCards.length > 0 && !error && (
+      {!hasMore && feedData.length > 0 && !error && (
         <div className="mt-8 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">
             <span>🎉</span>
@@ -353,10 +213,10 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
       )}
 
       {/* Manual Load More Button (backup for intersection observer) */}
-      {feedState.hasMore && !feedState.isLoadingMore && feedState.displayedCards.length > 0 && (
+      {hasMore && !isLoadingMore && feedData.length > 0 && (
         <div className="mt-6 text-center">
           <button
-            onClick={loadMoreCards}
+            onClick={loadMore}
             className="inline-flex items-center gap-2 px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200 font-medium"
           >
             Load More

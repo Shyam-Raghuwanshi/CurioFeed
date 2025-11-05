@@ -246,6 +246,51 @@ export const trackEngagement = mutation({
   },
 });
 
+// Log engagement with comprehensive data (new enhanced version)
+export const logEngagement = mutation({
+  args: {
+    userId: v.string(),
+    linkUrl: v.string(),
+    timeSpent: v.number(), // Time spent in milliseconds
+    scrolled: v.boolean(),
+    clicked: v.boolean(),
+    action: v.optional(v.union(v.literal("open"), v.literal("save"), v.literal("not-interested"))),
+    engagementScore: v.number(), // Pre-calculated score from frontend
+    interest: v.string(),
+    timestamp: v.number(),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const engagementId = await ctx.db.insert("engagementHistory", {
+        userId: args.userId,
+        linkUrl: args.linkUrl,
+        timeSpent: args.timeSpent,
+        scrolled: args.scrolled,
+        engagementScore: args.engagementScore,
+        interest: args.interest,
+        timestamp: args.timestamp,
+      });
+
+      // Return the engagement record
+      return {
+        _id: engagementId,
+        userId: args.userId,
+        linkUrl: args.linkUrl,
+        timeSpent: args.timeSpent,
+        scrolled: args.scrolled,
+        clicked: args.clicked,
+        action: args.action,
+        engagementScore: args.engagementScore,
+        interest: args.interest,
+        timestamp: args.timestamp,
+      };
+    } catch (error) {
+      console.error("Error logging engagement:", error);
+      throw new Error(`Failed to log engagement: ${error}`);
+    }
+  },
+});
+
 // Save post
 export const savePost = mutation({
   args: {

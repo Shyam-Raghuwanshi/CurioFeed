@@ -1,5 +1,12 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { ExternalLink, Bookmark, ThumbsDown } from 'lucide-react';
+import { 
+  startEngagementTimer, 
+  stopEngagementTimer, 
+  createEngagementData,
+  useLogEngagement,
+  type EngagementTimer 
+} from '../utils/engagement';
 
 // TypeScript interfaces
 export interface FeedCardProps {
@@ -8,16 +15,18 @@ export interface FeedCardProps {
   source: string;
   excerpt: string;
   imageUrl?: string;
-  onEngagement: (data: EngagementData) => void;
-  onSave: (url: string, title: string) => void;
-  onDislike: (url: string) => void;
+  interest: string;
+  userId: string;
+  onEngagement?: (data: EngagementData) => void;
+  onSave?: (url: string, title: string) => void;
+  onDislike?: (url: string) => void;
 }
 
 export interface EngagementData {
   linkUrl: string;
   timeSpent: number; // in milliseconds
   scrolled: boolean;
-  action: 'open' | 'save' | 'dislike' | 'view';
+  action: 'open' | 'save' | 'not-interested' | 'view';
   engagement_score: number;
 }
 
@@ -27,56 +36,56 @@ const FeedCard: React.FC<FeedCardProps> = ({
   source,
   excerpt,
   imageUrl,
+  interest,
+  userId,
   onEngagement,
   onSave,
   onDislike,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
-  const [startTime, setStartTime] = useState<number | null>(null);
-  const [timeSpent, setTimeSpent] = useState(0);
+  const [timer, setTimer] = useState<EngagementTimer | null>(null);
+  const [hasScrolled, setHasScrolled] = useState(false);
+  
+  // Convex mutation hook
+  const logEngagement = useLogEngagement();
 
-  // Calculate engagement score based on time spent and action
-  const calculateEngagementScore = useCallback((timeSpentMs: number, action: string): number => {
-    let score = 0;
-    
-    // Base score for time spent
-    if (timeSpentMs > 2000) score += 50; // 2+ seconds viewing
-    
-    // Action bonuses/penalties
-    switch (action) {
-      case 'open':
-        score += 30;
-        break;
-      case 'save':
-        score += 20;
-        break;
-      case 'dislike':
-        score -= 20;
-        break;
-      default:
-        break;
+  // Handle engagement logging
+  const handleEngagementLog = useCallback(async (
+    timeSpent: number, 
+    scrolled: boolean, 
+    action?: 'open' | 'save' | 'not-interested'
+  ) => {
+    try {
+      const engagementData = createEngagementData(
+        userId,
+        url,
+        timeSpent,
+        scrolled,
+        interest,
+        action
+      );
+
+      // Log to Convex
+      await logEngagement({
+        ...engagementData,
+        timestamp: Date.now()
+      });
+
+      // Call parent callback if provided
+      if (onEngagement) {
+        onEngagement({
+          linkUrl: url,
+          timeSpent,
+          scrolled,
+          action: action || 'view',
+          engagement_score: engagementData.engagementScore
+        });
+      }
+    } catch (error) {
+      console.error('Failed to log engagement:', error);
     }
-    
-    // Cap at 100
-    return Math.min(100, Math.max(0, score));
-  }, []);
-
-  // Track engagement when visibility changes
-  const trackEngagement = useCallback((action: 'open' | 'save' | 'dislike' | 'view') => {
-    const currentTime = Date.now();
-    const finalTimeSpent = startTime ? currentTime - startTime : timeSpent;
-    
-    const engagementData: EngagementData = {
-      linkUrl: url,
-      timeSpent: finalTimeSpent,
-      scrolled: action !== 'dislike', // Assume scrolled unless explicitly disliked
-      action,
-      engagement_score: calculateEngagementScore(finalTimeSpent, action)
-    };
-    
-    onEngagement(engagementData);
-  }, [startTime, timeSpent, url, onEngagement, calculateEngagementScore]);
+  }, [userId, url, interest, logEngagement, onEngagement]);
 
   // Intersection Observer for viewport detection
   useEffect(() => {
@@ -85,18 +94,19 @@ const FeedCard: React.FC<FeedCardProps> = ({
         const isCurrentlyVisible = entry.isIntersecting;
         
         if (isCurrentlyVisible && !isVisible) {
-          // Card entered viewport
+          // Card entered viewport - start timer
           setIsVisible(true);
-          setStartTime(Date.now());
+          const newTimer = startEngagementTimer();
+          setTimer(newTimer);
         } else if (!isCurrentlyVisible && isVisible) {
-          // Card left viewport
+          // Card left viewport - stop timer and log engagement
           setIsVisible(false);
-          if (startTime) {
-            const currentTimeSpent = Date.now() - startTime;
-            setTimeSpent(prev => prev + currentTimeSpent);
-            trackEngagement('view');
+          if (timer) {
+            const timeSpent = stopEngagementTimer(timer);
+            handleEngagementLog(timeSpent, hasScrolled);
           }
-          setStartTime(null);
+          setTimer(null);
+          setHasScrolled(false);
         }
       },
       {
@@ -113,24 +123,57 @@ const FeedCard: React.FC<FeedCardProps> = ({
       if (cardRef.current) {
         observer.unobserve(cardRef.current);
       }
+      // Clean up timer on unmount
+      if (timer) {
+        const timeSpent = stopEngagementTimer(timer);
+        handleEngagementLog(timeSpent, hasScrolled);
+      }
     };
-  }, [isVisible, startTime, trackEngagement]);
+  }, [isVisible, timer, hasScrolled, handleEngagementLog]);
+
+  // Track scrolling within the card area
+  useEffect(() => {
+    const handleScroll = () => {
+      if (isVisible) {
+        setHasScrolled(true);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [isVisible]);
 
   // Handle button actions
   const handleOpen = useCallback(() => {
-    trackEngagement('open');
+    if (timer) {
+      const timeSpent = stopEngagementTimer(timer);
+      handleEngagementLog(timeSpent, hasScrolled, 'open');
+      setTimer(null); // Reset timer after action
+    }
     window.open(url, '_blank', 'noopener,noreferrer');
-  }, [url, trackEngagement]);
+  }, [timer, hasScrolled, handleEngagementLog, url]);
 
   const handleSave = useCallback(() => {
-    trackEngagement('save');
-    onSave(url, title);
-  }, [url, title, onSave, trackEngagement]);
+    if (timer) {
+      const timeSpent = stopEngagementTimer(timer);
+      handleEngagementLog(timeSpent, hasScrolled, 'save');
+      setTimer(null); // Reset timer after action
+    }
+    if (onSave) {
+      onSave(url, title);
+    }
+  }, [timer, hasScrolled, handleEngagementLog, url, title, onSave]);
 
   const handleDislike = useCallback(() => {
-    trackEngagement('dislike');
-    onDislike(url);
-  }, [url, onDislike, trackEngagement]);
+    if (timer) {
+      const timeSpent = stopEngagementTimer(timer);
+      handleEngagementLog(timeSpent, hasScrolled, 'not-interested');
+      setTimer(null); // Reset timer after action
+    }
+    if (onDislike) {
+      onDislike(url);
+    }
+  }, [timer, hasScrolled, handleEngagementLog, url, onDislike]);
 
   // Placeholder image URL
   const placeholderImage = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200' viewBox='0 0 400 200'%3E%3Crect width='100%25' height='100%25' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%239ca3af' font-family='Arial, sans-serif' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E";

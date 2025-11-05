@@ -176,6 +176,7 @@ const fetchWeightedContent = async (
  * @param previousEngagementData - User's engagement history analysis
  * @param totalItems - Total number of items to fetch (default: 20)
  * @param weights - Custom weights for feed algorithm (optional)
+ * @param offset - Number of items to skip for pagination (default: 0)
  * @returns Array of crawled links with smart distribution
  */
 export const getSmartFeedForUser = async (
@@ -183,11 +184,15 @@ export const getSmartFeedForUser = async (
   currentInterest: Interest,
   previousEngagementData: EngagementData[],
   totalItems: number = 20,
-  weights: FeedWeights = DEFAULT_WEIGHTS
+  weights: FeedWeights = DEFAULT_WEIGHTS,
+  offset: number = 0
 ): Promise<SmartFeedResult[]> => {
   try {
-    console.log(`Creating smart feed for user ${userId} with interest ${currentInterest}`);
+    console.log(`Creating smart feed for user ${userId} with interest ${currentInterest}, offset: ${offset}`);
     console.log('Engagement data:', previousEngagementData);
+
+    // For pagination, we need to fetch more items than requested to account for the offset
+    const fetchTotal = totalItems + offset + 10; // Get extra items for better variety
 
     // Analyze engagement to find top engaged interest
     const topEngagedInterest = getTopEngagedInterest(previousEngagementData, currentInterest);
@@ -198,7 +203,7 @@ export const getSmartFeedForUser = async (
     console.log('Random interests:', randomInterests);
 
     // Calculate how many items to fetch from each category
-    const fetchCounts = calculateFetchCounts(totalItems, weights);
+    const fetchCounts = calculateFetchCounts(fetchTotal, weights);
     console.log('Fetch counts:', fetchCounts);
 
     // Adjust counts if no top engaged interest exists
@@ -223,16 +228,19 @@ export const getSmartFeedForUser = async (
     // Shuffle the final results for natural distribution
     const shuffledContent = shuffleArray(uniqueContent);
 
-    console.log(`Smart feed created with ${shuffledContent.length} items`);
+    // Apply pagination by skipping offset items and taking only the requested amount
+    const paginatedContent = shuffledContent.slice(offset, offset + totalItems);
+
+    console.log(`Smart feed created with ${paginatedContent.length} items (offset: ${offset})`);
     console.log('Content distribution:', {
-      currentInterest: shuffledContent.filter(item => item.interest === currentInterest).length,
-      topEngaged: topEngagedInterest ? shuffledContent.filter(item => item.interest === topEngagedInterest).length : 0,
-      random: shuffledContent.filter(item => 
+      currentInterest: paginatedContent.filter(item => item.interest === currentInterest).length,
+      topEngaged: topEngagedInterest ? paginatedContent.filter(item => item.interest === topEngagedInterest).length : 0,
+      random: paginatedContent.filter(item => 
         item.interest !== currentInterest && item.interest !== topEngagedInterest
       ).length,
     });
 
-    return shuffledContent;
+    return paginatedContent;
 
   } catch (error) {
     console.error('Error creating smart feed:', error);
@@ -240,8 +248,11 @@ export const getSmartFeedForUser = async (
     // Fallback: just fetch current interest if smart algorithm fails
     console.log('Falling back to current interest only');
     try {
-      const fallbackContent = await crawlLinksForInterest(currentInterest, totalItems);
-      return fallbackContent.map(link => ({ ...link, interest: currentInterest }));
+      const fallbackContent = await crawlLinksForInterest(currentInterest, totalItems + 10);
+      const paginatedFallback = fallbackContent
+        .map(link => ({ ...link, interest: currentInterest }))
+        .slice(offset, offset + totalItems);
+      return paginatedFallback;
     } catch (fallbackError) {
       console.error('Fallback also failed:', fallbackError);
       return [];
