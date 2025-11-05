@@ -11,15 +11,16 @@
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.53.4",
+    "@convex-dev/auth": "^0.0.90",
     "@mendable/firecrawl-js": "^4.4.1",
     "@tanstack/react-query": "^5.90.5",
     "@tanstack/react-router": "^1.133.36",
     "axios": "^1.13.1",
     "convex": "^1.18.0",
+    "events": "^3.3.0",
     "lucide-react": "^0.460.0",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "react-router-dom": "^7.9.5"
+    "react-dom": "^19.1.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

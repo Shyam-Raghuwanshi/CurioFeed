@@ -1,7 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
-// Create a new user
+// Create a new user or update existing user
 export const createUser = mutation({
   args: {
     userId: v.string(),
@@ -18,9 +18,26 @@ export const createUser = mutation({
         .first();
 
       if (existingUser) {
-        throw new Error("User already exists");
+        // User already exists, update their interests and mark onboarding as completed
+        await ctx.db.patch(existingUser._id, {
+          interests: args.interests,
+          defaultInterests: args.defaultInterests,
+          onboardingCompleted: true, // Mark as completed when interests are saved
+        });
+
+        // Return the updated user object
+        return {
+          _id: existingUser._id,
+          userId: args.userId,
+          email: args.email,
+          interests: args.interests,
+          defaultInterests: args.defaultInterests,
+          onboardingCompleted: true,
+          createdAt: existingUser.createdAt,
+        };
       }
 
+      // User doesn't exist, create new user
       const now = Date.now();
       const userDocId = await ctx.db.insert("users", {
         userId: args.userId,
@@ -42,8 +59,8 @@ export const createUser = mutation({
         createdAt: now,
       };
     } catch (error) {
-      console.error("Error creating user:", error);
-      throw new Error(`Failed to create user: ${error}`);
+      console.error("Error creating/updating user:", error);
+      throw new Error(`Failed to create/update user: ${error}`);
     }
   },
 });
@@ -130,7 +147,7 @@ export const markOnboardingCompleted = mutation({
 export const migrateExistingUsers = mutation({
   handler: async (ctx) => {
     try {
-      // Get all users that don't have the onboardingCompleted field or have it as undefined
+      // Get all users that don't have the onboardingCompleted field or have it as undefined/false
       const allUsers = await ctx.db
         .query("users")
         .collect();
@@ -138,13 +155,14 @@ export const migrateExistingUsers = mutation({
       let updatedCount = 0;
 
       for (const user of allUsers) {
-        // If user has interests and the onboardingCompleted field is missing or undefined
-        if (user.onboardingCompleted === undefined && user.interests && user.interests.length > 0) {
+        // If user has interests but onboardingCompleted is missing, undefined, or false
+        if ((user.onboardingCompleted === undefined || user.onboardingCompleted === false) && 
+            user.interests && user.interests.length > 0) {
           await ctx.db.patch(user._id, {
             onboardingCompleted: true, // Mark as completed if they have interests
           });
           updatedCount++;
-        } else if (user.onboardingCompleted === undefined) {
+        } else if (user.onboardingCompleted === undefined && (!user.interests || user.interests.length === 0)) {
           await ctx.db.patch(user._id, {
             onboardingCompleted: false, // Mark as not completed if no interests
           });
@@ -152,7 +170,6 @@ export const migrateExistingUsers = mutation({
         }
       }
 
-      console.log(`Migration completed: Updated ${updatedCount} users`);
       return {
         success: true,
         updatedCount,

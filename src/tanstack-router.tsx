@@ -1,6 +1,9 @@
 import { createRouter, createRoute, createRootRoute, Outlet, Navigate } from '@tanstack/react-router'
 import { useAuth } from '@clerk/clerk-react'
+import { useOnboarding } from './context/OnboardingContext'
 import SignUpPage from './components/SignUpPage'
+import SignInPage from './components/SignInPage'
+import OnboardingPage from './components/OnboardingPage'
 import FeedPage from './components/FeedPage'
 
 // Root route
@@ -21,17 +24,22 @@ function LoadingSpinner() {
   )
 }
 
-// Index route (/) - redirects based on auth
+// Index route (/) - redirects based on auth and onboarding
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   component: function IndexComponent() {
     const { isSignedIn, isLoaded } = useAuth()
+    const { isOnboardingCompleted, isLoading: onboardingLoading } = useOnboarding()
 
-    if (!isLoaded) return <LoadingSpinner />
+    if (!isLoaded || onboardingLoading) return <LoadingSpinner />
     
     if (isSignedIn) {
-      return <Navigate to="/feed" replace />
+      if (isOnboardingCompleted) {
+        return <Navigate to="/feed" replace />
+      } else {
+        return <Navigate to="/onboarding" replace />
+      }
     } else {
       return <Navigate to="/signup" replace />
     }
@@ -44,14 +52,63 @@ const signupRoute = createRoute({
   path: '/signup',
   component: function SignupComponent() {
     const { isSignedIn, isLoaded } = useAuth()
+    const { isOnboardingCompleted, isLoading: onboardingLoading } = useOnboarding()
 
-    if (!isLoaded) return <LoadingSpinner />
+    if (!isLoaded || onboardingLoading) return <LoadingSpinner />
     
     if (isSignedIn) {
-      return <Navigate to="/feed" replace />
+      if (isOnboardingCompleted) {
+        return <Navigate to="/feed" replace />
+      } else {
+        return <Navigate to="/onboarding" replace />
+      }
     }
 
     return <SignUpPage />
+  },
+})
+
+// Signin route
+const signinRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/sign-in',
+  component: function SigninComponent() {
+    const { isSignedIn, isLoaded } = useAuth()
+    const { isOnboardingCompleted, isLoading: onboardingLoading } = useOnboarding()
+
+    if (!isLoaded || onboardingLoading) return <LoadingSpinner />
+    
+    if (isSignedIn) {
+      if (isOnboardingCompleted) {
+        return <Navigate to="/feed" replace />
+      } else {
+        return <Navigate to="/onboarding" replace />
+      }
+    }
+
+    return <SignInPage />
+  },
+})
+
+// Onboarding route
+const onboardingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/onboarding',
+  component: function OnboardingComponent() {
+    const { isSignedIn, isLoaded } = useAuth()
+    const { isOnboardingCompleted, isLoading: onboardingLoading } = useOnboarding()
+
+    if (!isLoaded || onboardingLoading) return <LoadingSpinner />
+    
+    if (!isSignedIn) {
+      return <Navigate to="/signup" replace />
+    }
+
+    if (isOnboardingCompleted) {
+      return <Navigate to="/feed" replace />
+    }
+
+    return <OnboardingPage />
   },
 })
 
@@ -61,11 +118,16 @@ const feedRoute = createRoute({
   path: '/feed',
   component: function FeedComponent() {
     const { isSignedIn, isLoaded } = useAuth()
+    const { isOnboardingCompleted, isLoading: onboardingLoading } = useOnboarding()
 
-    if (!isLoaded) return <LoadingSpinner />
+    if (!isLoaded || onboardingLoading) return <LoadingSpinner />
     
     if (!isSignedIn) {
       return <Navigate to="/signup" replace />
+    }
+
+    if (!isOnboardingCompleted) {
+      return <Navigate to="/onboarding" replace />
     }
 
     return <FeedPage />
@@ -78,11 +140,16 @@ const savedRoute = createRoute({
   path: '/saved',
   component: function SavedComponent() {
     const { isSignedIn, isLoaded } = useAuth()
+    const { isOnboardingCompleted, isLoading: onboardingLoading } = useOnboarding()
 
-    if (!isLoaded) return <LoadingSpinner />
+    if (!isLoaded || onboardingLoading) return <LoadingSpinner />
     
     if (!isSignedIn) {
       return <Navigate to="/signup" replace />
+    }
+
+    if (!isOnboardingCompleted) {
+      return <Navigate to="/onboarding" replace />
     }
 
     return (
@@ -118,6 +185,8 @@ const savedRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   signupRoute,
+  signinRoute,
+  onboardingRoute,
   feedRoute,
   savedRoute,
 ])

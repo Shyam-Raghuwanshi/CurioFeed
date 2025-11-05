@@ -47,9 +47,7 @@ export function setCookie(name: string, value: string, options: CookieOptions = 
     
     cookieString += `; SameSite=${sameSite}`;
 
-    console.log('Setting cookie:', cookieString);
     document.cookie = cookieString;
-    console.log('All cookies after set:', document.cookie);
   } catch (error) {
     console.error('Error setting cookie:', error);
   }
@@ -122,8 +120,6 @@ export type CookieName = typeof COOKIE_NAMES[keyof typeof COOKIE_NAMES];
  * @param userId - User ID to associate with completion
  */
 export function setOnboardingCompletedCookie(userId: string): void {
-  console.log('Setting onboarding cookie for userId:', userId);
-  
   // Use the most basic approach that definitely works
   const cookieName = 'onboardingCompleted';
   const expirationDate = new Date();
@@ -131,13 +127,6 @@ export function setOnboardingCompletedCookie(userId: string): void {
   
   const cookieValue = `${cookieName}=${userId}; expires=${expirationDate.toUTCString()}; path=/`;
   document.cookie = cookieValue;
-  
-  console.log('Cookie string set:', cookieValue);
-  console.log('All cookies after set:', document.cookie);
-  
-  // Verify immediately
-  const verify = document.cookie.split(';').find(c => c.trim().startsWith(cookieName));
-  console.log('Immediate verification:', verify);
 }
 
 /**

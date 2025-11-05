@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { RefreshCw, AlertCircle } from 'lucide-react';
 import FeedCard, { type EngagementData } from './FeedCard';
 import FeedCardSkeleton from './FeedCardSkeleton';
-import { getSmartFeedForUser, type SmartFeedResult, type EngagementData as EngagementAnalysis } from '../server/smartRefetch';
+import { getSmartFeedForUser, type SmartFeedResult, type EngagementData as EngagementAnalysis } from '../client/mockFeed';
 import { MAX_CARDS_PER_BATCH, type Interest } from '../utils/constants';
 
 // TypeScript interfaces

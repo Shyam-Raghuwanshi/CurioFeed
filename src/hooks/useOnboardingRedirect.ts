@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useRouter, useLocation } from '@tanstack/react-router';
 import { useAuth } from "@clerk/clerk-react";
 import { useOnboarding } from '../context/OnboardingContext';
 
@@ -29,7 +29,7 @@ interface UseOnboardingRedirectResult {
  * @returns Object with redirect state and actions
  */
 export function useOnboardingRedirect(options: RedirectOptions = {}): UseOnboardingRedirectResult {
-  const navigate = useNavigate();
+  const router = useRouter();
   const location = useLocation();
   const { isSignedIn, isLoaded } = useAuth();
   const { 
@@ -89,12 +89,12 @@ export function useOnboardingRedirect(options: RedirectOptions = {}): UseOnboard
     if (shouldRedirect && redirectTo && location.pathname !== redirectTo) {
       // Add a small delay to ensure all state is settled
       const timeoutId = setTimeout(() => {
-        navigate(redirectTo, { replace: true });
+        router.navigate({ to: redirectTo, replace: true });
       }, 100);
 
       return () => clearTimeout(timeoutId);
     }
-  }, [shouldRedirect, redirectTo, navigate, location.pathname]);
+  }, [shouldRedirect, redirectTo, router, location.pathname]);
 
   return {
     isRedirecting: shouldRedirect,

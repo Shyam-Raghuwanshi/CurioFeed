@@ -2,14 +2,14 @@ import { UserButton, useUser } from "@clerk/clerk-react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "@tanstack/react-router";
 import { Check, Loader2 } from "lucide-react";
 import { INTEREST_OPTIONS } from "../utils/constants";
 import { useOnboarding } from "../context/OnboardingContext";
 
 export default function OnboardingPage() {
   const { user } = useUser();
-  const navigate = useNavigate();
+  const router = useRouter();
   const { markOnboardingCompleted } = useOnboarding();
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [setAsDefault, setSetAsDefault] = useState(true);
@@ -49,26 +49,19 @@ export default function OnboardingPage() {
       // Mark as submitted to prevent automatic redirect
       hasSubmitted.current = true;
       
-      console.log('Creating user with interests:', selectedInterests);
-      
       // Create user in database with onboarding completed
-      const result = await createUser({
+      await createUser({
         userId: user.id,
         email: user.emailAddresses[0]?.emailAddress || "",
         interests: selectedInterests,
         defaultInterests: setAsDefault ? selectedInterests : [],
       });
       
-      console.log('User created successfully:', result);
-      
       // Mark onboarding as completed in cookie
-      console.log('About to mark onboarding as completed');
       markOnboardingCompleted();
-      console.log('Marked onboarding as completed, navigating to feed');
       
-      // Force redirect using window.location as backup
-      console.log('Navigating to feed page');
-      window.location.href = '/feed';
+      // Navigate to feed page
+      router.navigate({ to: '/feed' });
       
     } catch (err) {
       console.error("Error creating user:", err);
@@ -78,9 +71,9 @@ export default function OnboardingPage() {
     }
   };
 
-  // If user already exists and we haven't submitted, redirect to feed
-  if (currentUser && !isLoading && !hasSubmitted.current) {
-    navigate("/feed");
+  // If user already exists and has completed onboarding, redirect to feed
+  if (currentUser && currentUser.onboardingCompleted && !isLoading && !hasSubmitted.current) {
+    router.navigate({ to: "/feed" });
     return null;
   }
 

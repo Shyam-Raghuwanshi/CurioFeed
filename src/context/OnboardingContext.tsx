@@ -105,8 +105,14 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
           setIsOnboardingCompleted(true);
         } else {
           // Database says onboarding is not completed or field is missing (legacy records)
-          // If the field is undefined, treat as not completed
-          setIsOnboardingCompleted(false);
+          // Check if user has interests - if they do, consider onboarding completed
+          if (currentUser.interests && currentUser.interests.length > 0) {
+            setOnboardingCompletedCookie(user.id);
+            setIsOnboardingCompleted(true);
+          } else {
+            // No interests, onboarding truly not completed
+            setIsOnboardingCompleted(false);
+          }
         }
 
         setIsLoading(false);
@@ -125,11 +131,9 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
     if (!user) return;
     
     try {
-      console.log('Setting onboarding completed cookie for user:', user.id);
       setOnboardingCompletedCookie(user.id);
       setIsOnboardingCompleted(true);
       setError(null);
-      console.log('Onboarding completed state updated');
     } catch (err) {
       console.error('Error marking onboarding as completed:', err);
       setError('Failed to save onboarding status');

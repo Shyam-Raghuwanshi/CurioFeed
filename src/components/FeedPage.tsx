@@ -1,7 +1,7 @@
 import { UserButton, useUser } from "@clerk/clerk-react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { 
   Monitor, 
   Palette, 
@@ -12,11 +12,16 @@ import {
   Plus,
   X,
   CheckCircle,
-  Circle
+  Circle,
+  History,
+  Bookmark,
+  ExternalLink
 } from "lucide-react";
 import { INTEREST_OPTIONS } from "../utils/constants";
 import type { Interest } from "../utils/constants";
 import MigrationHelper from "./MigrationHelper";
+import InfiniteFeed from "./InfiniteFeed";
+import type { EngagementData } from "./FeedCard";
 
 // Interest icon mapping
 const interestIcons = {
@@ -33,11 +38,43 @@ export default function FeedPage() {
   const currentUser = useQuery(api.users.getCurrentUser);
   const updateUserInterests = useMutation(api.users.updateUserInterests);
   
+  // Convex queries and mutations for engagement and saved posts
+  const engagementHistory = useQuery(api.queries.getEngagementHistory, 
+    user?.id ? { userId: user.id, limit: 50 } : "skip"
+  );
+  const trackEngagement = useMutation(api.users.trackEngagement);
+  const savePost = useMutation(api.users.savePost);
+  const getUserSavedPosts = useQuery(api.queries.getUserSavedPosts,
+    user?.id ? { userId: user.id } : "skip"
+  );
+  
   const [activeInterest, setActiveInterest] = useState<Interest>("Tech");
   const [isLoading, setIsLoading] = useState(false);
   const [showChangeInterests, setShowChangeInterests] = useState(false);
   const [selectedInterests, setSelectedInterests] = useState<Interest[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [showEngagementHistory, setShowEngagementHistory] = useState(false);
+  const [showSavedPosts, setShowSavedPosts] = useState(false);
+  // Convert engagement history to the format expected by InfiniteFeed
+  const formattedEngagementData = useMemo(() => {
+    if (!engagementHistory) return [];
+    
+    // Group by interest and calculate average scores
+    const interestGroups = engagementHistory.reduce((acc, engagement) => {
+      if (!acc[engagement.interest]) {
+        acc[engagement.interest] = { totalScore: 0, count: 0 };
+      }
+      acc[engagement.interest].totalScore += engagement.engagementScore;
+      acc[engagement.interest].count += 1;
+      return acc;
+    }, {} as Record<string, { totalScore: number; count: number }>);
+
+    return Object.entries(interestGroups).map(([interest, data]) => ({
+      interest,
+      avgEngagementScore: data.totalScore / data.count,
+      totalEngagements: data.count,
+    }));
+  }, [engagementHistory]);
 
   // Initialize selected interests with user's current interests
   useEffect(() => {
@@ -118,6 +155,53 @@ export default function FeedPage() {
     }
   };
 
+  // Handle engagement tracking
+  const handleEngagement = async (data: EngagementData) => {
+    if (!user?.id) return;
+    
+    try {
+      await trackEngagement({
+        userId: user.id,
+        linkUrl: data.linkUrl,
+        timeSpent: data.timeSpent,
+        scrolled: data.scrolled,
+        interest: activeInterest,
+      });
+      console.log('Engagement tracked:', data);
+    } catch (error) {
+      console.error('Error tracking engagement:', error);
+    }
+  };
+
+  // Handle saving posts
+  const handleSavePost = async (url: string, title: string) => {
+    if (!user?.id) return;
+    
+    try {
+      // Extract source from URL
+      const domain = new URL(url).hostname.replace('www.', '');
+      
+      await savePost({
+        userId: user.id,
+        linkUrl: url,
+        title: title,
+        source: domain,
+      });
+      
+      console.log('Post saved:', { url, title });
+      // TODO: Show success toast
+    } catch (error) {
+      console.error('Error saving post:', error);
+      // TODO: Show error toast
+    }
+  };
+
+  // Handle post dislike (placeholder for future implementation)
+  const handleDislikePost = async (url: string) => {
+    console.log('Post disliked:', url);
+    // TODO: Implement dislike functionality
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -131,6 +215,22 @@ export default function FeedPage() {
           </div>
           
           <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setShowEngagementHistory(true)}
+              className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <History className="w-4 h-4" />
+              <span>History</span>
+            </button>
+            
+            <button
+              onClick={() => setShowSavedPosts(true)}
+              className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <Bookmark className="w-4 h-4" />
+              <span>Saved ({getUserSavedPosts?.length || 0})</span>
+            </button>
+            
             <UserButton 
               appearance={{
                 elements: {
@@ -191,37 +291,31 @@ export default function FeedPage() {
 
       {/* Feed Content */}
       <main className="max-w-4xl mx-auto px-4 py-8">
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">
-              {activeInterest} Content
-            </h2>
-            {isLoading && (
-              <div className="flex items-center space-x-2 text-gray-600">
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
-                <span className="text-sm">Loading fresh content...</span>
-              </div>
-            )}
-          </div>
-
-          {/* Feed Content Placeholder */}
-          <div className="space-y-6">
+        {user?.id && (
+          <InfiniteFeed
+            userId={user.id}
+            currentInterest={activeInterest}
+            engagementData={formattedEngagementData}
+            onEngagement={handleEngagement}
+            onSave={handleSavePost}
+            onDislike={handleDislikePost}
+          />
+        )}
+        
+        {/* Fallback content when user ID is not available */}
+        {!user?.id && (
+          <div className="bg-white rounded-lg shadow-lg p-8">
             <div className="text-center py-12">
-              <div className="mb-4">
-                {React.createElement(interestIcons[activeInterest] || Sparkles, {
-                  className: "w-16 h-16 mx-auto text-gray-400"
-                })}
-              </div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {activeInterest} feed is being prepared!
+                Loading your feed...
               </h3>
               <p className="text-gray-600">
-                We're gathering the latest {activeInterest.toLowerCase()} content for you. 
-                Check back soon for curated articles and links.
+                Please wait while we prepare your personalized content.
               </p>
             </div>
           </div>
-        </div>
+        )}
       </main>
 
       {/* Change Interests Modal */}
@@ -298,6 +392,114 @@ export default function FeedPage() {
                 )}
                 <span>{isSaving ? 'Saving...' : 'Save Changes'}</span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Engagement History Modal */}
+      {showEngagementHistory && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Engagement History</h3>
+              <button
+                onClick={() => setShowEngagementHistory(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-6 max-h-96 overflow-y-auto">
+              {engagementHistory && engagementHistory.length > 0 ? (
+                <div className="space-y-4">
+                  {engagementHistory.map((engagement) => (
+                    <div
+                      key={engagement._id}
+                      className="flex items-start justify-between p-4 bg-gray-50 rounded-lg"
+                    >
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900 truncate">
+                          {engagement.linkUrl}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          Interest: {engagement.interest} | Score: {engagement.engagementScore}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {new Date(engagement.timestamp).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <History className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                  <p className="text-gray-600">No engagement history yet.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Saved Posts Modal */}
+      {showSavedPosts && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">Saved Posts</h3>
+              <button
+                onClick={() => setShowSavedPosts(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-6 max-h-96 overflow-y-auto">
+              {getUserSavedPosts && getUserSavedPosts.length > 0 ? (
+                <div className="space-y-4">
+                  {getUserSavedPosts.map((savedPost) => (
+                    <div
+                      key={savedPost._id}
+                      className="flex items-start justify-between p-4 bg-gray-50 rounded-lg"
+                    >
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900 mb-1">
+                          {savedPost.title}
+                        </h4>
+                        <p className="text-sm text-gray-600 mb-2">
+                          Source: {savedPost.source}
+                        </p>
+                        <a
+                          href={savedPost.linkUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:text-blue-800 truncate block"
+                        >
+                          {savedPost.linkUrl}
+                        </a>
+                        <p className="text-xs text-gray-500 mt-2">
+                          Saved on {new Date(savedPost.savedAt).toLocaleString()}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => window.open(savedPost.linkUrl, '_blank')}
+                        className="ml-4 text-blue-600 hover:text-blue-800"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Bookmark className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                  <p className="text-gray-600">No saved posts yet.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

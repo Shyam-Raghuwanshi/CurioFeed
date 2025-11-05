@@ -1,21 +1,23 @@
 # CurioFeed
 
-A personalized content feed app built with TanStack Start + Convex for the TanStack Start Hackathon.
+A personalized content feed app built with React + Convex with intelligent engagement tracking and content recommendations.
 
 ## 🚀 Tech Stack
 
-- **Frontend**: TanStack Start + React + TypeScript
+- **Frontend**: React + TypeScript + TanStack Router
 - **Backend**: Convex (real-time database)
+- **Authentication**: Clerk
 - **Styling**: Tailwind CSS + lucide-react
 - **Web Scraping**: Firecrawl API
-- **Deployment**: Netlify + Convex Cloud
+- **Deployment**: Vite + Convex Cloud
 
 ## 📋 Prerequisites
 
 - Node.js 18+
 - npm or yarn
 - Convex account (free)
-- Firecrawl API key
+- Clerk account (free)
+- Firecrawl API key (optional)
 
 ## 🔧 Setup
 
@@ -25,13 +27,16 @@ A personalized content feed app built with TanStack Start + Convex for the TanSt
    ```
 
 2. **Set up environment variables**:
-   - Copy `.env.local` and update the values:
+   Create a `.env.local` file with:
    ```bash
-   # Already configured from Convex init
-   VITE_CONVEX_URL=https://your-deployment.convex.cloud
+   # Convex Configuration (Required)
+   VITE_CONVEX_URL=https://your-convex-deployment-url.convex.cloud
    
-   # Get this from https://firecrawl.dev
-   FIRECRAWL_API_KEY=your-firecrawl-api-key-here
+   # Clerk Authentication (Required)
+   VITE_CLERK_PUBLISHABLE_KEY=pk_test_your_clerk_key_here
+   
+   # Firecrawl API (Optional - for content scraping)
+   FIRECRAWL_API_KEY=your_firecrawl_api_key_here
    ```
 
 3. **Start Convex development server**:
@@ -48,11 +53,11 @@ A personalized content feed app built with TanStack Start + Convex for the TanSt
 
 ```
 src/
-├── routes/              # TanStack Router pages
 ├── components/          # React components  
 ├── hooks/              # Custom React hooks
 ├── utils/              # Utility functions & constants
-└── server/             # Server functions (Netlify edge)
+├── context/            # React context providers
+└── server/             # Server functions
 
 convex/
 ├── schema.ts           # Database schema
@@ -69,21 +74,51 @@ convex/
 
 ## 📖 Features
 
-- ✅ User signup with interest selection
-- ✅ Personalized content feed
-- ✅ Engagement tracking
-- ✅ Smart feed algorithm
-- ✅ Save posts functionality
-- ✅ Real-time sync with Convex
+### ✅ Completed Features
 
-## 🎯 Next Steps
+- **User Authentication**: Complete signup/signin flow with Clerk
+- **User Onboarding**: Interest selection with localStorage persistence
+- **Personalized Feed**: Content feed based on user interests
+- **Engagement Tracking**: Track user interactions (time spent, scrolling, clicks)
+- **Save Posts**: Bookmark functionality with Convex storage
+- **Engagement History**: View detailed interaction history
+- **Smart Feed Algorithm**: Intelligent content recommendation
+- **Real-time Sync**: Live updates with Convex
+- **Environment Validation**: Automatic configuration checking
 
-Follow the step-by-step guide in `COPILOT_RULES.md` to build:
+### 🔧 Convex Integration
 
-1. **Setup** ✅ (Complete)
-2. **Backend** ✅ (Complete)  
-3. **Frontend** (Next)
-4. **Integration**
-5. **Polish**
+The app now includes full Convex client integration:
 
-Ready to start building! 🚀
+1. **SignUp Component**:
+   - Imports `useUser` from Clerk and stores userId in localStorage
+   - Redirects to onboarding for interest selection
+   - Creates Convex user record after interest selection
+
+2. **Feed Component**:
+   - Uses `useQuery(api.queries.getEngagementHistory)` to fetch user data
+   - Uses `useMutation(api.users.trackEngagement)` to log interactions
+   - Uses `useMutation(api.users.savePost)` to save posts
+   - Shows engagement history and saved posts in modal dialogs
+
+3. **Database Schema**:
+   - `users`: User profiles with interests and onboarding status
+   - `engagementHistory`: Tracks user interactions with content
+   - `savedPosts`: Stores user bookmarked content
+   - `feedCache`: Cached content for different interests
+
+## 🎯 Environment Setup
+
+See `CONVEX_SETUP.md` for detailed setup instructions and troubleshooting.
+
+The environment is automatically validated on startup. Check your browser console for configuration status.
+
+## 🚀 Next Steps
+
+1. **Content Integration**: Connect real content sources
+2. **Advanced Analytics**: Add engagement insights dashboard
+3. **Social Features**: User profiles and content sharing
+4. **Mobile App**: React Native version
+5. **AI Recommendations**: Machine learning-based content suggestions
+
+Ready to personalize your content experience! 🚀
