@@ -14,5 +14,14 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['events']
-  }
+  },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
 })

@@ -1,10 +1,25 @@
-import React, { useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useEffect } from 'react';
 import { RefreshCw, AlertCircle } from 'lucide-react';
 import FeedCard, { type EngagementData } from './FeedCard';
 import FeedCardSkeleton from './FeedCardSkeleton';
 import { useInfiniteFeed } from '../hooks/useInfiniteFeed';
-import { type SmartFeedResult, type EngagementData as EngagementAnalysis } from '../server/smartRefetch';
 import { type Interest } from '../utils/constants';
+
+// Local types for feed data
+interface SmartFeedResult {
+  title: string;
+  url: string;
+  source: string;
+  excerpt: string;
+  imageUrl?: string;
+  interest: string;
+}
+
+interface EngagementAnalysis {
+  interest: string;
+  avgEngagementScore: number;
+  totalEngagements: number;
+}
 
 // TypeScript interfaces
 export interface InfiniteFeedProps {
@@ -43,22 +58,37 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
 
   // Intersection observer callback for infinite scroll
   const lastCardElementRef = useCallback((node: HTMLDivElement | null) => {
-    if (isLoadingMore || isLoading) return;
+    if (isLoadingMore || isLoading) {
+      console.log('Skipping intersection observer setup - loading in progress');
+      return;
+    }
     
     if (observer.current) observer.current.disconnect();
     
     observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
-        console.log('Last card visible, loading more...');
+      const entry = entries[0];
+      console.log('Intersection observer triggered:', {
+        isIntersecting: entry.isIntersecting,
+        hasMore,
+        isLoadingMore,
+        isLoading,
+        feedDataLength: feedData.length
+      });
+      
+      if (entry.isIntersecting && hasMore && !isLoadingMore && !isLoading) {
+        console.log('Conditions met - loading more content...');
         loadMore();
       }
     }, {
       threshold: 0.1, // Trigger when 10% of the last card is visible
-      rootMargin: '200px', // Start loading 200px before the last card is visible
+      rootMargin: '400px', // Start loading 400px before the last card is visible
     });
     
-    if (node) observer.current.observe(node);
-  }, [isLoadingMore, hasMore, isLoading, loadMore]);
+    if (node) {
+      console.log('Setting up intersection observer on last card');
+      observer.current.observe(node);
+    }
+  }, [isLoadingMore, hasMore, isLoading, loadMore, feedData.length]);
 
   // Handle refresh
   const handleRefresh = useCallback(() => {
@@ -69,6 +99,15 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
   const handleRetry = useCallback(() => {
     refresh();
   }, [refresh]);
+
+  // Cleanup intersection observer on unmount
+  useEffect(() => {
+    return () => {
+      if (observer.current) {
+        observer.current.disconnect();
+      }
+    };
+  }, []);
 
   // Render loading state
   if (isLoading && feedData.length === 0) {
@@ -135,15 +174,9 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
       <div className="mb-6 text-center">
         <p className="text-sm text-gray-600">
           Showing {feedData.length} items for <span className="font-semibold">{currentInterest}</span>
-          {isLoading && <span className="ml-2 text-blue-600">Loading...</span>}
+          {isLoadingMore && <span className="ml-2 text-blue-600">Loading more...</span>}
+          {hasMore && !isLoadingMore && <span className="ml-2 text-green-600">• Scroll for more</span>}
         </p>
-        <button
-          onClick={handleRefresh}
-          disabled={isLoading}
-          className="mt-2 text-sm text-blue-600 hover:text-blue-700 transition-colors duration-200 disabled:text-gray-400"
-        >
-          Refresh Feed
-        </button>
       </div>
 
       {/* Feed Cards */}
@@ -196,30 +229,24 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
         </div>
       )}
 
-      {/* End of Feed */}
+      {/* End of Feed - Simple message without refresh button */}
       {!hasMore && feedData.length > 0 && !error && (
         <div className="mt-8 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">
             <span>🎉</span>
-            You've reached the end! 
-            <button
-              onClick={handleRefresh}
-              className="ml-2 text-blue-600 underline hover:no-underline"
-            >
-              Load fresh content
-            </button>
+            You've reached the end! Change interests to see more content.
           </div>
         </div>
       )}
 
-      {/* Manual Load More Button (backup for intersection observer) */}
-      {hasMore && !isLoadingMore && feedData.length > 0 && (
+      {/* Debug: Manual Load More (fallback for infinite scroll) */}
+      {hasMore && !isLoadingMore && feedData.length > 5 && (
         <div className="mt-6 text-center">
           <button
             onClick={loadMore}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200 font-medium"
+            className="text-xs text-gray-500 hover:text-gray-700 transition-colors duration-200 underline"
           >
-            Load More
+            Load More (if auto-scroll not working)
           </button>
         </div>
       )}

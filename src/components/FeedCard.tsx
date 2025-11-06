@@ -1,11 +1,11 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { ExternalLink, Bookmark, ThumbsDown } from 'lucide-react';
-import { 
-  startEngagementTimer, 
-  stopEngagementTimer, 
+import {
+  startEngagementTimer,
+  stopEngagementTimer,
   createEngagementData,
   useLogEngagement,
-  type EngagementTimer 
+  type EngagementTimer
 } from '../utils/engagement';
 
 // TypeScript interfaces
@@ -46,14 +46,14 @@ const FeedCard: React.FC<FeedCardProps> = ({
   const [isVisible, setIsVisible] = useState(false);
   const [timer, setTimer] = useState<EngagementTimer | null>(null);
   const [hasScrolled, setHasScrolled] = useState(false);
-  
+
   // Convex mutation hook
   const logEngagement = useLogEngagement();
 
   // Handle engagement logging
   const handleEngagementLog = useCallback(async (
-    timeSpent: number, 
-    scrolled: boolean, 
+    timeSpent: number,
+    scrolled: boolean,
     action?: 'open' | 'save' | 'not-interested'
   ) => {
     try {
@@ -92,7 +92,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
     const observer = new IntersectionObserver(
       ([entry]) => {
         const isCurrentlyVisible = entry.isIntersecting;
-        
+
         if (isCurrentlyVisible && !isVisible) {
           // Card entered viewport - start timer
           setIsVisible(true);
@@ -175,26 +175,12 @@ const FeedCard: React.FC<FeedCardProps> = ({
     }
   }, [timer, hasScrolled, handleEngagementLog, url, onDislike]);
 
-  // Placeholder image URL
-  const placeholderImage = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200' viewBox='0 0 400 200'%3E%3Crect width='100%25' height='100%25' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%239ca3af' font-family='Arial, sans-serif' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E";
 
   return (
-    <div 
+    <div
       ref={cardRef}
       className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 border border-gray-200 overflow-hidden"
     >
-      {/* Image Section */}
-      <div className="relative h-48 bg-gray-100 overflow-hidden">
-        <img
-          src={imageUrl || placeholderImage}
-          alt={title}
-          className="w-full h-full object-cover"
-          loading="lazy"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = placeholderImage;
-          }}
-        />
-      </div>
 
       {/* Content Section */}
       <div className="p-4">
@@ -222,7 +208,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
             <ExternalLink size={16} />
             Open
           </button>
-          
+
           <button
             onClick={handleSave}
             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors duration-200 flex-1 justify-center text-sm font-medium"
@@ -230,7 +216,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
             <Bookmark size={16} />
             Save
           </button>
-          
+
           <button
             onClick={handleDislike}
             className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors duration-200 flex-1 justify-center text-sm font-medium"

@@ -1,3 +1,24 @@
+/**
+ * Smart Feed Algorithm for CurioFeed
+ * 
+ * This module implements an intelligent content recommendation system that adapts to user behavior.
+ * 
+ * Main Algorithm (smartRefetch function):
+ * 1. Fetch getTopEngagedInterests(userId, limit=5) from Convex
+ * 2. Get currentInterest from user's selection
+ * 3. Calculate weights: currentInterest: 60%, topEngagedInterest: 25%, randomInterest: 15%
+ * 4. For each weight percentage: Calculate how many links to fetch, Call crawlLinksForInterest
+ * 5. Combine all links and shuffle
+ * 6. Return to frontend
+ * 
+ * Features:
+ * - Real-time adaptation based on user engagement history
+ * - Balanced content distribution (60% current, 25% top engaged, 15% random)
+ * - Fallback mechanisms for edge cases (new users, API failures)
+ * - Duplicate removal and content shuffling for natural distribution
+ * - TypeScript support with comprehensive error handling
+ */
+
 import { crawlLinksForInterest, type CrawledLink } from './crawl';
 import { INTEREST_OPTIONS, type Interest } from '../utils/constants';
 
@@ -20,9 +41,9 @@ export interface FeedWeights {
 
 // Default weights as per requirements
 const DEFAULT_WEIGHTS: FeedWeights = {
-  currentInterest: 0.7, // 70%
-  topEngaged: 0.2,      // 20%
-  random: 0.1,          // 10%
+  currentInterest: 0.6, // 60%
+  topEngaged: 0.25,     // 25%
+  random: 0.15,         // 15%
 };
 
 /**
@@ -255,7 +276,7 @@ export const getSmartFeedForUser = async (
       return paginatedFallback;
     } catch (fallbackError) {
       console.error('Fallback also failed:', fallbackError);
-      return [];
+      throw new Error('Unable to fetch content. Please check your Firecrawl API key and try again.');
     }
   }
 };
@@ -291,3 +312,364 @@ export const testSmartFeed = async (
     console.log(`${index + 1}. [${item.interest}] ${item.title} - ${item.source}`);
   });
 };
+
+/**
+ * Smart Refetch Function - Main API for frontend
+ * Algorithm:
+ * 1. Fetch getTopEngagedInterests(userId, limit=5)
+ * 2. Get currentInterest from user's selection  
+ * 3. Calculate weights: currentInterest: 60%, topEngagedInterest: 25%, randomInterest: 15%
+ * 4. For each weight percentage: Calculate how many links to fetch, Call crawlLinksForInterest
+ * 5. Combine all links and shuffle
+ * 6. Return to frontend
+ * 
+ * @param userId - User identifier
+ * @param currentInterest - User's currently selected interest
+ * @param totalItems - Total number of items to fetch (default: 20)
+ * @returns Array of crawled links with smart distribution
+ */
+export const smartRefetch = async (
+  userId: string,
+  currentInterest: Interest,
+  totalItems: number = 20
+): Promise<SmartFeedResult[]> => {
+  try {
+    console.log(`Smart refetch for user ${userId}, interest: ${currentInterest}, total: ${totalItems}`);
+
+    // Step 1: Fetch top engaged interests from Convex
+    // Note: In a real implementation, this would be a call to your Convex API
+    // For now, we'll simulate getting this data from your engagement tracking
+    const topEngagedInterests = await getTopEngagedInterestsForUser(userId);
+    console.log('Top engaged interests:', topEngagedInterests);
+
+    // Step 2: currentInterest is already provided as parameter
+
+    // Step 3: Calculate weights (60%, 25%, 15%)
+    const weights = DEFAULT_WEIGHTS;
+    const counts = calculateFetchCounts(totalItems, weights);
+    console.log('Calculated counts:', counts);
+
+    // Find the top engaged interest (excluding current interest)
+    const topEngagedInterest = topEngagedInterests.find(
+      interest => interest.interest !== currentInterest
+    )?.interest as Interest || null;
+
+    // Get random interests for diversity
+    const randomInterests = getRandomInterests(currentInterest, topEngagedInterest);
+
+    // Step 4: Fetch links for each category
+    const allLinks: SmartFeedResult[] = [];
+
+    // Fetch current interest links (60%)
+    if (counts.currentInterest > 0) {
+      try {
+        const currentLinks = await crawlLinksForInterest(currentInterest, counts.currentInterest);
+        allLinks.push(...currentLinks.map(link => ({ ...link, interest: currentInterest })));
+        console.log(`Fetched ${currentLinks.length} links for current interest: ${currentInterest}`);
+      } catch (error) {
+        console.error(`Error fetching current interest ${currentInterest}:`, error);
+      }
+    }
+
+    // Fetch top engaged interest links (25%)
+    if (topEngagedInterest && counts.topEngaged > 0) {
+      try {
+        const topEngagedLinks = await crawlLinksForInterest(topEngagedInterest, counts.topEngaged);
+        allLinks.push(...topEngagedLinks.map(link => ({ ...link, interest: topEngagedInterest })));
+        console.log(`Fetched ${topEngagedLinks.length} links for top engaged interest: ${topEngagedInterest}`);
+      } catch (error) {
+        console.error(`Error fetching top engaged interest ${topEngagedInterest}:`, error);
+      }
+    } else {
+      // If no top engaged interest, add those links to current interest
+      if (counts.topEngaged > 0) {
+        try {
+          const extraCurrentLinks = await crawlLinksForInterest(currentInterest, counts.topEngaged);
+          allLinks.push(...extraCurrentLinks.map(link => ({ ...link, interest: currentInterest })));
+          console.log(`No top engaged interest found, fetched ${extraCurrentLinks.length} extra current interest links`);
+        } catch (error) {
+          console.error(`Error fetching extra current interest links:`, error);
+        }
+      }
+    }
+
+    // Fetch random interest links (15%)
+    if (randomInterests.length > 0 && counts.random > 0) {
+      const countPerRandomInterest = Math.ceil(counts.random / Math.min(randomInterests.length, 2));
+      
+      for (const randomInterest of randomInterests.slice(0, 2)) {
+        try {
+          const randomLinks = await crawlLinksForInterest(randomInterest, countPerRandomInterest);
+          allLinks.push(...randomLinks.map(link => ({ ...link, interest: randomInterest })));
+          console.log(`Fetched ${randomLinks.length} links for random interest: ${randomInterest}`);
+        } catch (error) {
+          console.error(`Error fetching random interest ${randomInterest}:`, error);
+        }
+      }
+    }
+
+    // Step 5: Remove duplicates and shuffle
+    const uniqueLinks = allLinks.filter((link, index, self) => 
+      index === self.findIndex(other => other.url === link.url)
+    );
+
+    const shuffledLinks = shuffleArray(uniqueLinks);
+
+    // Take only the requested number of items
+    const finalResults = shuffledLinks.slice(0, totalItems);
+
+    console.log(`Smart refetch completed: ${finalResults.length} total links`);
+    console.log('Distribution:', {
+      currentInterest: finalResults.filter(link => link.interest === currentInterest).length,
+      topEngaged: topEngagedInterest ? finalResults.filter(link => link.interest === topEngagedInterest).length : 0,
+      random: finalResults.filter(link => 
+        link.interest !== currentInterest && link.interest !== topEngagedInterest
+      ).length,
+    });
+
+    return finalResults;
+
+  } catch (error) {
+    console.error('Error in smartRefetch:', error);
+    
+    // Fallback: return current interest only
+    try {
+      console.log('Falling back to current interest only');
+      const fallbackLinks = await crawlLinksForInterest(currentInterest, totalItems);
+      return fallbackLinks.map(link => ({ ...link, interest: currentInterest }));
+    } catch (fallbackError) {
+      console.error('Fallback also failed:', fallbackError);
+      throw new Error('Unable to fetch content. Please check your Firecrawl API key and try again.');
+    }
+  }
+};
+
+/**
+ * Helper function to get top engaged interests for a user
+ * This calls your Convex getTopEngagedInterests query
+ * @param userId - User identifier
+ * @returns Array of engagement data sorted by engagement score
+ */
+const getTopEngagedInterestsForUser = async (_userId: string): Promise<EngagementData[]> => {
+  throw new Error(
+    'getTopEngagedInterestsForUser requires Convex integration. ' +
+    'Please use smartRefetchWithConvex instead, or implement the Convex API call here.'
+  );
+};
+
+/**
+ * Smart Refetch Function with Convex Integration
+ * This version is designed to be called from TanStack Start server functions
+ * @param userId - User identifier  
+ * @param currentInterest - User's currently selected interest
+ * @param convexClient - Convex client instance for database queries
+ * @param totalItems - Total number of items to fetch (default: 20)
+ * @returns Array of crawled links with smart distribution
+ */
+export const smartRefetchWithConvex = async (
+  userId: string,
+  currentInterest: Interest,
+  convexClient: any, // ConvexHttpClient type
+  totalItems: number = 20
+): Promise<SmartFeedResult[]> => {
+  try {
+    console.log(`Smart refetch with Convex for user ${userId}, interest: ${currentInterest}`);
+
+    // Step 1: Fetch top engaged interests from Convex
+    const topEngagedInterests = await convexClient.query(
+      "queries:getTopEngagedInterests", 
+      { userId, limit: 5 }
+    );
+    console.log('Top engaged interests from Convex:', topEngagedInterests);
+
+    // Step 2 & 3: Calculate weights and counts
+    const weights = DEFAULT_WEIGHTS;
+    const counts = calculateFetchCounts(totalItems, weights);
+
+    // Find the top engaged interest (excluding current interest)
+    const topEngagedInterest = topEngagedInterests.find(
+      (interest: any) => interest.interest !== currentInterest
+    )?.interest as Interest || null;
+
+    // Get random interests for diversity
+    const randomInterests = getRandomInterests(currentInterest, topEngagedInterest);
+
+    // Step 4: Fetch links for each category
+    const allLinks: SmartFeedResult[] = [];
+
+    // Fetch current interest links (60%)
+    if (counts.currentInterest > 0) {
+      try {
+        const currentLinks = await crawlLinksForInterest(currentInterest, counts.currentInterest);
+        allLinks.push(...currentLinks.map(link => ({ ...link, interest: currentInterest })));
+        console.log(`Fetched ${currentLinks.length} links for current interest: ${currentInterest}`);
+      } catch (error) {
+        console.error(`Error fetching current interest ${currentInterest}:`, error);
+      }
+    }
+
+    // Fetch top engaged interest links (25%)
+    if (topEngagedInterest && counts.topEngaged > 0) {
+      try {
+        const topEngagedLinks = await crawlLinksForInterest(topEngagedInterest, counts.topEngaged);
+        allLinks.push(...topEngagedLinks.map(link => ({ ...link, interest: topEngagedInterest })));
+        console.log(`Fetched ${topEngagedLinks.length} links for top engaged interest: ${topEngagedInterest}`);
+      } catch (error) {
+        console.error(`Error fetching top engaged interest ${topEngagedInterest}:`, error);
+      }
+    } else {
+      // If no top engaged interest, add those links to current interest
+      if (counts.topEngaged > 0) {
+        try {
+          const extraCurrentLinks = await crawlLinksForInterest(currentInterest, counts.topEngaged);
+          allLinks.push(...extraCurrentLinks.map(link => ({ ...link, interest: currentInterest })));
+          console.log(`No top engaged interest found, fetched ${extraCurrentLinks.length} extra current interest links`);
+        } catch (error) {
+          console.error(`Error fetching extra current interest links:`, error);
+        }
+      }
+    }
+
+    // Fetch random interest links (15%)
+    if (randomInterests.length > 0 && counts.random > 0) {
+      const countPerRandomInterest = Math.ceil(counts.random / Math.min(randomInterests.length, 2));
+      
+      for (const randomInterest of randomInterests.slice(0, 2)) {
+        try {
+          const randomLinks = await crawlLinksForInterest(randomInterest, countPerRandomInterest);
+          allLinks.push(...randomLinks.map(link => ({ ...link, interest: randomInterest })));
+          console.log(`Fetched ${randomLinks.length} links for random interest: ${randomInterest}`);
+        } catch (error) {
+          console.error(`Error fetching random interest ${randomInterest}:`, error);
+        }
+      }
+    }
+
+    // Step 5: Remove duplicates and shuffle
+    const uniqueLinks = allLinks.filter((link, index, self) => 
+      index === self.findIndex(other => other.url === link.url)
+    );
+
+    const shuffledLinks = shuffleArray(uniqueLinks);
+    const finalResults = shuffledLinks.slice(0, totalItems);
+
+    console.log(`Smart refetch completed: ${finalResults.length} total links`);
+    console.log('Distribution:', {
+      currentInterest: finalResults.filter(link => link.interest === currentInterest).length,
+      topEngaged: topEngagedInterest ? finalResults.filter(link => link.interest === topEngagedInterest).length : 0,
+      random: finalResults.filter(link => 
+        link.interest !== currentInterest && link.interest !== topEngagedInterest
+      ).length,
+    });
+
+    return finalResults;
+
+  } catch (error) {
+    console.error('Error in smartRefetchWithConvex:', error);
+    
+    // Fallback: return current interest only
+    try {
+      console.log('Falling back to current interest only');
+      const fallbackLinks = await crawlLinksForInterest(currentInterest, totalItems);
+      return fallbackLinks.map(link => ({ ...link, interest: currentInterest }));
+    } catch (fallbackError) {
+      console.error('Fallback also failed:', fallbackError);
+      throw new Error('Unable to fetch content. Please check your Firecrawl API key and try again.');
+    }
+  }
+};
+
+/**
+ * Test function to verify the smart refetch algorithm
+ * @param userId - Test user ID
+ * @param currentInterest - Current interest to test
+ */
+export const testSmartRefetch = async (
+  userId: string = 'test-user-123',
+  currentInterest: Interest = 'Tech'
+): Promise<void> => {
+  console.log('\n=== Testing Smart Refetch Algorithm ===');
+  console.log(`Test parameters: userId=${userId}, currentInterest=${currentInterest}`);
+  
+  try {
+    // Test the main smartRefetch function
+    const results = await smartRefetch(userId, currentInterest, 10);
+    
+    console.log('\n--- Test Results ---');
+    console.log(`Total items fetched: ${results.length}`);
+    
+    // Analyze distribution
+    const distribution = results.reduce((acc, item) => {
+      acc[item.interest] = (acc[item.interest] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    console.log('Interest distribution:', distribution);
+    
+    // Expected distribution for 10 items: ~6 current, ~2-3 top engaged, ~1-2 random
+    const currentCount = distribution[currentInterest] || 0;
+    const expectedCurrentMin = Math.floor(10 * 0.5); // Allow some variance
+    const expectedCurrentMax = Math.ceil(10 * 0.8);
+    
+    console.log(`Current interest (${currentInterest}) count: ${currentCount}`);
+    console.log(`Expected range: ${expectedCurrentMin}-${expectedCurrentMax}`);
+    
+    if (currentCount >= expectedCurrentMin && currentCount <= expectedCurrentMax) {
+      console.log('✅ Distribution looks correct');
+    } else {
+      console.log('⚠️  Distribution might need adjustment');
+    }
+    
+    // Display sample results
+    console.log('\n--- Sample Items ---');
+    results.slice(0, 5).forEach((item, index) => {
+      console.log(`${index + 1}. [${item.interest}] ${item.title || 'No title'}`);
+    });
+    
+  } catch (error) {
+    console.error('❌ Test failed:', error);
+  }
+  
+  console.log('\n=== Test Complete ===\n');
+};
+
+/**
+ * Usage Examples and Integration Guide
+ * 
+ * 1. Basic usage (standalone):
+ * ```typescript
+ * import { smartRefetch } from './server/smartRefetch';
+ * 
+ * const feedData = await smartRefetch('user-123', 'Tech', 20);
+ * ```
+ * 
+ * 2. Usage with Convex (recommended):
+ * ```typescript
+ * import { smartRefetchWithConvex } from './server/smartRefetch';
+ * import { ConvexHttpClient } from "convex/browser";
+ * 
+ * const convex = new ConvexHttpClient(process.env.VITE_CONVEX_URL!);
+ * const feedData = await smartRefetchWithConvex('user-123', 'Tech', convex, 20);
+ * ```
+ * 
+ * 3. TanStack Start server function example:
+ * ```typescript
+ * // In your route file (e.g., src/routes/api/feed.ts)
+ * import { createServerFn } from '@tanstack/start'
+ * import { smartRefetchWithConvex } from '../server/smartRefetch'
+ * 
+ * export const getFeedData = createServerFn('POST', async (data: { userId: string, interest: string }) => {
+ *   const convex = new ConvexHttpClient(process.env.VITE_CONVEX_URL!)
+ *   return await smartRefetchWithConvex(data.userId, data.interest, convex, 20)
+ * })
+ * ```
+ * 
+ * 4. Frontend usage:
+ * ```typescript
+ * // In your React component
+ * const handleRefresh = async () => {
+ *   const freshFeed = await getFeedData({ userId: user.id, interest: selectedInterest })
+ *   setFeedData(freshFeed)
+ * }
+ * ```
+ */

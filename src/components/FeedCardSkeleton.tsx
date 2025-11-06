@@ -12,8 +12,6 @@ const FeedCardSkeleton: React.FC<FeedCardSkeletonProps> = ({ count = 1 }) => {
           key={index}
           className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden animate-pulse"
         >
-          {/* Image Skeleton */}
-          <div className="h-48 bg-gray-300"></div>
 
           {/* Content Skeleton */}
           <div className="p-4">

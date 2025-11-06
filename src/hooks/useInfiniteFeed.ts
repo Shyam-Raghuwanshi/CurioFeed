@@ -1,6 +1,21 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { getSmartFeedForUser, type SmartFeedResult, type EngagementData } from '../server/smartRefetch';
 import { type Interest } from '../utils/constants';
+
+// Types for feed data
+interface SmartFeedResult {
+  title: string;
+  url: string;
+  source: string;
+  excerpt: string;
+  imageUrl?: string;
+  interest: string;
+}
+
+interface EngagementData {
+  interest: string;
+  avgEngagementScore: number;
+  totalEngagements: number;
+}
 
 // Hook state interface
 interface InfiniteFeedState {
@@ -70,12 +85,44 @@ export const useInfiniteFeed = (
     new Promise(resolve => setTimeout(resolve, ms));
 
   /**
+   * Fetch data from API server
+   */
+  const fetchFromAPI = useCallback(async (
+    interest: Interest,
+    offset: number,
+    limit: number
+  ): Promise<{ data: SmartFeedResult[], hasMore: boolean }> => {
+    const response = await fetch('/api/feed/crawl', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        interest,
+        limit,
+        offset,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return {
+      data: result.data || [],
+      hasMore: result.hasMore || false
+    };
+  }, []);
+
+  /**
    * Fetch data with retry logic
    */
   const fetchWithRetry = useCallback(async (
     currentOffset: number,
     isRefresh: boolean = false
-  ): Promise<SmartFeedResult[]> => {
+  ): Promise<{ data: SmartFeedResult[], hasMore: boolean }> => {
     // Abort any previous request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -99,25 +146,19 @@ export const useInfiniteFeed = (
           userId,
           offset: currentOffset,
           itemsPerPage,
-          isRefresh
+          isRefresh,
+          engagementDataLength: engagementData.length
         });
 
-        // Call the server function with pagination
-        const result = await getSmartFeedForUser(
-          userId,
-          interest,
-          engagementData,
-          itemsPerPage,
-          undefined, // default weights
-          currentOffset
-        );
+        // Call the API server
+        const result = await fetchFromAPI(interest, currentOffset, itemsPerPage);
 
         // Check if request was aborted after async operation
         if (signal.aborted) {
           throw new Error('Request was aborted');
         }
 
-        console.log(`Successfully fetched ${result.length} feed items`);
+        console.log(`Successfully fetched ${result.data.length} feed items for offset ${currentOffset}, hasMore: ${result.hasMore}`);
         return result;
 
       } catch (error) {
@@ -138,7 +179,7 @@ export const useInfiniteFeed = (
 
     // If we get here, all retries failed
     throw lastError || new Error('Failed to fetch feed data after all retry attempts');
-  }, [interest, userId, engagementData, itemsPerPage, retryAttempts, retryDelay]);
+  }, [interest, userId, engagementData, itemsPerPage, retryAttempts, retryDelay, fetchFromAPI]);
 
   /**
    * Load initial data
@@ -153,16 +194,16 @@ export const useInfiniteFeed = (
         error: null,
       }));
 
-      const data = await fetchWithRetry(0, true);
+      const result = await fetchWithRetry(0, true);
       
       setState(prev => ({
         ...prev,
-        data,
+        data: result.data,
         isLoading: false,
         isLoadingMore: false,
         error: null,
-        hasMore: data.length === itemsPerPage, // If we get less than requested, no more data
-        offset: data.length,
+        hasMore: result.hasMore, // Use the API's hasMore value
+        offset: result.data.length,
       }));
 
       initializedRef.current = true;
@@ -187,7 +228,7 @@ export const useInfiniteFeed = (
         hasMore: false,
       }));
     }
-  }, [enabled, fetchWithRetry, itemsPerPage]);
+  }, [enabled, fetchWithRetry]);
 
   /**
    * Load more data (for infinite scroll)
@@ -205,19 +246,21 @@ export const useInfiniteFeed = (
       }));
 
       console.log(`Loading more data with offset: ${state.offset}`);
-      const newData = await fetchWithRetry(state.offset);
+      const result = await fetchWithRetry(state.offset);
       
       setState(prev => {
         // Filter out any duplicates by URL
         const existingUrls = new Set(prev.data.map(item => item.url));
-        const uniqueNewData = newData.filter(item => !existingUrls.has(item.url));
+        const uniqueNewData = result.data.filter(item => !existingUrls.has(item.url));
+
+        console.log(`Adding ${uniqueNewData.length} unique items (${result.data.length - uniqueNewData.length} duplicates filtered)`);
 
         return {
           ...prev,
           data: [...prev.data, ...uniqueNewData],
           isLoadingMore: false,
           error: null,
-          hasMore: newData.length === itemsPerPage, // If we get less than requested, no more data
+          hasMore: result.hasMore, // Use the API's hasMore value
           offset: prev.offset + uniqueNewData.length,
         };
       });
@@ -241,7 +284,7 @@ export const useInfiniteFeed = (
         hasMore: false, // Stop trying to load more on error
       }));
     }
-  }, [enabled, state.isLoading, state.isLoadingMore, state.hasMore, state.offset, fetchWithRetry, itemsPerPage]);
+  }, [enabled, state.isLoading, state.isLoadingMore, state.hasMore, state.offset, fetchWithRetry]);
 
   /**
    * Refresh the entire feed
