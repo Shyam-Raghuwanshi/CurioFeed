@@ -13,9 +13,26 @@ config({ path: join(__dirname, '..', '.env.local') });
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Middleware
-app.use(cors());
+if (NODE_ENV === 'development') {
+  app.use(cors({
+    origin: ['http://localhost:5173', 'http://localhost:5174'],
+    credentials: true
+  }));
+} else {
+  // Production: more permissive CORS for deployment
+  app.use(cors({
+    origin: true,
+    credentials: true
+  }));
+  
+  // Serve static files in production
+  const distPath = join(__dirname, '..', 'dist');
+  app.use(express.static(distPath));
+}
+
 app.use(express.json());
 
 // Health check endpoint
@@ -51,25 +68,29 @@ app.post('/api/feed/crawl', async (req, res) => {
     // Get the API key from environment
     const apiKey = process.env.VITE_FIRECRAWL_API_KEY;
     
-    // Get enough items to handle pagination
-    const allItems = await crawlLinksForInterest(interest, Math.max(limit + offset, 20), apiKey);
+    // Always fetch fresh content for each request to ensure new content
+    // This allows the infinite scroll to continue working by getting new search results
+    const itemsToFetch = limit * 3; // Fetch more to account for potential duplicates and filtering
+    const allItems = await crawlLinksForInterest(interest, itemsToFetch, apiKey);
     
     console.log(`API: Crawled ${allItems.length} total items`);
     
-    // Apply pagination
-    const paginatedItems = allItems.slice(offset, offset + limit);
-    
-    // Format as SmartFeedResult
-    const result = paginatedItems.map(item => ({
+    // Apply pagination - but since we're fetching fresh content each time,
+    // we don't slice by offset, instead we just return the latest results
+    const result = allItems.slice(0, limit).map(item => ({
       ...item,
       interest
     }));
     
+    // Always indicate there's more content available for infinite scroll
+    // Since we're crawling real-time web content, there's always potentially more
+    const hasMore = result.length === limit && allItems.length > 0;
+    
     res.json({ 
       data: result, 
-      hasMore: allItems.length > offset + limit,
+      hasMore: hasMore,
       total: allItems.length,
-      offset,
+      offset: offset + result.length,
       limit
     });
     
@@ -133,6 +154,13 @@ app.use((error, req, res, next) => {
     error: 'Internal server error' 
   });
 });
+
+// Catch-all handler for React Router (only in production)
+if (NODE_ENV !== 'development') {
+  app.get('*', (req, res) => {
+    res.sendFile(join(__dirname, '..', 'dist', 'index.html'));
+  });
+}
 
 // Start server
 app.listen(PORT, () => {

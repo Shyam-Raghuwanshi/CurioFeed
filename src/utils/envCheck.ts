@@ -50,11 +50,11 @@ export function checkEnvironmentConfig(): EnvCheckResult {
   }
 
   // Check optional variables
-  const firecrawlKey = import.meta.env.FIRECRAWL_API_KEY;
+  const firecrawlKey = import.meta.env.VITE_FIRECRAWL_API_KEY;
   if (firecrawlKey) {
     config.firecrawlApiKey = firecrawlKey;
   } else {
-    warnings.push('FIRECRAWL_API_KEY not set - content scraping may not work');
+    warnings.push('VITE_FIRECRAWL_API_KEY not set - content scraping may not work');
   }
 
   return {

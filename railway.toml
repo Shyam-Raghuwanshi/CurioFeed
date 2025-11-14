@@ -1,0 +1,18 @@
+version: "3"
+
+build:
+  builder: nixpacks
+
+deploy:
+  restartPolicyType: always
+  
+env:
+  NODE_ENV: production
+  PORT: ${{ RAILWAY_PORT }}
+
+healthcheck:
+  path: /api/health
+  timeout: 300
+
+domains:
+  - curiofeed.railway.app

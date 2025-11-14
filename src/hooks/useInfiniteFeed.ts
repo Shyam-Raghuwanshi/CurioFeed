@@ -77,6 +77,7 @@ export const useInfiniteFeed = (
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastInterestRef = useRef<Interest>(interest);
   const initializedRef = useRef(false);
+  const seenUrlsRef = useRef<Set<string>>(new Set());
 
   /**
    * Delay utility for retry logic
@@ -202,10 +203,12 @@ export const useInfiniteFeed = (
         isLoading: false,
         isLoadingMore: false,
         error: null,
-        hasMore: result.hasMore, // Use the API's hasMore value
+        hasMore: result.hasMore,
         offset: result.data.length,
       }));
 
+      // Initialize seen URLs with the first batch
+      seenUrlsRef.current = new Set(result.data.map(item => item.url));
       initializedRef.current = true;
 
     } catch (error) {
@@ -249,18 +252,20 @@ export const useInfiniteFeed = (
       const result = await fetchWithRetry(state.offset);
       
       setState(prev => {
-        // Filter out any duplicates by URL
-        const existingUrls = new Set(prev.data.map(item => item.url));
-        const uniqueNewData = result.data.filter(item => !existingUrls.has(item.url));
+        // Filter out any duplicates using the seen URLs set
+        const uniqueNewData = result.data.filter(item => !seenUrlsRef.current.has(item.url));
 
         console.log(`Adding ${uniqueNewData.length} unique items (${result.data.length - uniqueNewData.length} duplicates filtered)`);
+
+        // Add new URLs to seen set
+        uniqueNewData.forEach(item => seenUrlsRef.current.add(item.url));
 
         return {
           ...prev,
           data: [...prev.data, ...uniqueNewData],
           isLoadingMore: false,
           error: null,
-          hasMore: result.hasMore, // Use the API's hasMore value
+          hasMore: true, // Always assume more content is available for web crawling
           offset: prev.offset + uniqueNewData.length,
         };
       });
@@ -298,6 +303,9 @@ export const useInfiniteFeed = (
       error: null,
     }));
     
+    // Reset seen URLs when refreshing
+    seenUrlsRef.current.clear();
+    
     await loadInitial();
   }, [loadInitial]);
 
@@ -318,6 +326,9 @@ export const useInfiniteFeed = (
         hasMore: true,
         offset: 0,
       });
+      
+      // Reset seen URLs when interest changes
+      seenUrlsRef.current.clear();
       
       loadInitial();
     }

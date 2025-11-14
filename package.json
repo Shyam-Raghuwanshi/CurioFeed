@@ -9,7 +9,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "server": "NODE_ENV=development tsx server/api.js",
-    "dev:full": "concurrently \"npm run server\" \"npm run dev\""
+    "server:prod": "NODE_ENV=production tsx server/api.js",
+    "dev:full": "concurrently \"npm run server\" \"npm run dev\"",
+    "start": "concurrently \"npm run server:prod\" \"npm run preview\"",
+    "build:all": "npm run build && echo 'Build complete - ready for deployment'"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.53.4",

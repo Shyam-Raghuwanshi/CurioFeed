@@ -175,7 +175,7 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
         <p className="text-sm text-gray-600">
           Showing {feedData.length} items for <span className="font-semibold">{currentInterest}</span>
           {isLoadingMore && <span className="ml-2 text-blue-600">Loading more...</span>}
-          {hasMore && !isLoadingMore && <span className="ml-2 text-green-600">• Scroll for more</span>}
+          {!isLoadingMore && <span className="ml-2 text-green-600">• Scroll for more</span>}
         </p>
       </div>
 
@@ -229,18 +229,8 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
         </div>
       )}
 
-      {/* End of Feed - Simple message without refresh button */}
-      {!hasMore && feedData.length > 0 && !error && (
-        <div className="mt-8 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm">
-            <span>🎉</span>
-            You've reached the end! Change interests to see more content.
-          </div>
-        </div>
-      )}
-
       {/* Debug: Manual Load More (fallback for infinite scroll) */}
-      {hasMore && !isLoadingMore && feedData.length > 5 && (
+      {!isLoadingMore && feedData.length > 5 && (
         <div className="mt-6 text-center">
           <button
             onClick={loadMore}

@@ -35,7 +35,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
   url,
   source,
   excerpt,
-  imageUrl,
+  imageUrl: _imageUrl, // Prefix with underscore to indicate intentionally unused
   interest,
   userId,
   onEngagement,

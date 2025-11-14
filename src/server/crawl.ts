@@ -42,13 +42,14 @@ interface FirecrawlSearchResult {
   };
 }
 
-interface FirecrawlResponse {
-  data?: {
-    web?: FirecrawlSearchResult[];
-  };
-  success: boolean;
-  error?: string;
-}
+// Removed unused FirecrawlResponse interface
+// interface FirecrawlResponse {
+//   data?: {
+//     web?: FirecrawlSearchResult[];
+//   };
+//   success: boolean;
+//   error?: string;
+// }
 
 // Initialize Firecrawl client
 const getFirecrawlClient = (apiKey?: string): FirecrawlApp => {
@@ -60,9 +61,9 @@ const getFirecrawlClient = (apiKey?: string): FirecrawlApp => {
 };
 
 /**
- * Maps interest to search queries using predefined terms
+ * Maps interest to search queries using predefined terms with rotation for variety
  */
-const getSearchQueries = (interest: Interest): string[] => {
+const getSearchQueries = (interest: Interest, limit: number): string[] => {
   const searchTerms = FIRECRAWL_SEARCH_TERMS[interest];
   
   if (!searchTerms || searchTerms.length === 0) {
@@ -70,8 +71,13 @@ const getSearchQueries = (interest: Interest): string[] => {
     return [interest.toLowerCase()];
   }
   
-  // Convert readonly array to mutable array
-  return [...searchTerms];
+  // Convert readonly array to mutable array and shuffle for variety
+  const shuffledTerms = [...searchTerms].sort(() => Math.random() - 0.5);
+  
+  // Use multiple terms based on the requested limit to ensure variety
+  const termsToUse = Math.min(Math.max(Math.ceil(limit / 8), 3), shuffledTerms.length);
+  
+  return shuffledTerms.slice(0, termsToUse);
 };
 
 /**
@@ -134,7 +140,7 @@ const searchWithRetry = async (
     
     const response = await Promise.race([
       firecrawl.search(query, {
-        limit: 5, // Limit per query to avoid overwhelming results
+        limit: 8, // Increased from 5 to get more results per query
       }),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Search timeout')), API_CONFIG.FIRECRAWL_TIMEOUT)
@@ -183,7 +189,7 @@ export const crawlLinksForInterest = async (
     const firecrawl = getFirecrawlClient(apiKey);
     
     // Get search queries for the interest
-    const searchQueries = getSearchQueries(interest);
+    const searchQueries = getSearchQueries(interest, limit);
     console.log(`Crawling links for interest: ${interest}`, { searchQueries });
     
     // Perform searches for all queries
