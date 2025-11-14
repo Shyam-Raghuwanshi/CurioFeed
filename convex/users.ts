@@ -309,7 +309,15 @@ export const savePost = mutation({
         .first();
 
       if (existingSavedPost) {
-        throw new Error("Post already saved");
+        return {
+          _id: existingSavedPost._id,
+          userId: existingSavedPost.userId,
+          linkUrl: existingSavedPost.linkUrl,
+          title: existingSavedPost.title,
+          source: existingSavedPost.source,
+          savedAt: existingSavedPost.savedAt,
+          alreadySaved: true,
+        };
       }
 
       const savedAt = Date.now();
@@ -329,10 +337,63 @@ export const savePost = mutation({
         title: args.title,
         source: args.source,
         savedAt,
+        alreadySaved: false,
       };
     } catch (error) {
       console.error("Error saving post:", error);
       throw new Error(`Failed to save post: ${error}`);
+    }
+  },
+});
+
+// Unsave post
+export const unsavePost = mutation({
+  args: {
+    userId: v.string(),
+    linkUrl: v.string(),
+  },
+  handler: async (ctx, args) => {
+    try {
+      // Find the saved post
+      const savedPost = await ctx.db
+        .query("savedPosts")
+        .withIndex("by_user", (q) => q.eq("userId", args.userId))
+        .filter((q) => q.eq(q.field("linkUrl"), args.linkUrl))
+        .first();
+
+      if (!savedPost) {
+        throw new Error("Post not found in saved posts");
+      }
+
+      // Delete the saved post
+      await ctx.db.delete(savedPost._id);
+
+      return { success: true, message: "Post unsaved successfully" };
+    } catch (error) {
+      console.error("Error unsaving post:", error);
+      throw new Error(`Failed to unsave post: ${error}`);
+    }
+  },
+});
+
+// Check if post is saved by user
+export const isPostSaved = query({
+  args: {
+    userId: v.string(),
+    linkUrl: v.string(),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const savedPost = await ctx.db
+        .query("savedPosts")
+        .withIndex("by_user", (q) => q.eq("userId", args.userId))
+        .filter((q) => q.eq(q.field("linkUrl"), args.linkUrl))
+        .first();
+
+      return !!savedPost;
+    } catch (error) {
+      console.error("Error checking if post is saved:", error);
+      return false;
     }
   },
 });

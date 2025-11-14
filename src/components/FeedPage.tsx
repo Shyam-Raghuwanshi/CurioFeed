@@ -43,6 +43,7 @@ export default function FeedPage() {
   );
   const trackEngagement = useMutation(api.users.trackEngagement);
   const savePost = useMutation(api.users.savePost);
+  const unsavePost = useMutation(api.users.unsavePost);
   const getUserSavedPosts = useQuery(api.queries.getUserSavedPosts,
     user?.id ? { userId: user.id } : "skip"
   );
@@ -166,7 +167,8 @@ export default function FeedPage() {
         scrolled: data.scrolled,
         interest: activeInterest,
       });
-      console.log('Engagement tracked:', data);
+      // Reduced logging to prevent console spam
+      // console.log('Engagement tracked:', data);
     } catch (error) {
       console.error('Error tracking engagement:', error);
     }
@@ -191,6 +193,24 @@ export default function FeedPage() {
       // TODO: Show success toast
     } catch (error) {
       console.error('Error saving post:', error);
+      // TODO: Show error toast
+    }
+  };
+
+  // Handle unsaving posts
+  const handleUnsavePost = async (url: string) => {
+    if (!user?.id) return;
+    
+    try {
+      await unsavePost({
+        userId: user.id,
+        linkUrl: url,
+      });
+      
+      console.log('Post unsaved:', { url });
+      // TODO: Show success toast
+    } catch (error) {
+      console.error('Error unsaving post:', error);
       // TODO: Show error toast
     }
   };
@@ -297,6 +317,7 @@ export default function FeedPage() {
             engagementData={formattedEngagementData}
             onEngagement={handleEngagement}
             onSave={handleSavePost}
+            onUnsave={handleUnsavePost}
             onDislike={handleDislikePost}
           />
         )}

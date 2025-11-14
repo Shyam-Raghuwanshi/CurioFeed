@@ -1,5 +1,7 @@
 import React, { useRef, useCallback, useEffect } from 'react';
 import { RefreshCw, AlertCircle } from 'lucide-react';
+import { useQuery } from 'convex/react';
+import { api } from '../../convex/_generated/api';
 import FeedCard, { type EngagementData } from './FeedCard';
 import FeedCardSkeleton from './FeedCardSkeleton';
 import { useInfiniteFeed } from '../hooks/useInfiniteFeed';
@@ -27,7 +29,8 @@ export interface InfiniteFeedProps {
   currentInterest: Interest;
   engagementData: EngagementAnalysis[];
   onEngagement: (data: EngagementData) => void;
-  onSave: (url: string, title: string) => void;
+  onSave: (url: string, title: string) => Promise<void>;
+  onUnsave?: (url: string) => Promise<void>;
   onDislike: (url: string) => void;
 }
 
@@ -37,8 +40,12 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
   engagementData,
   onEngagement,
   onSave,
+  onUnsave,
   onDislike,
 }) => {
+  // Get user's saved posts to check which cards are saved
+  const userSavedPosts = useQuery(api.queries.getUserSavedPosts, { userId });
+  
   // Use the infinite feed hook
   const { 
     data: feedData, 
@@ -59,7 +66,6 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
   // Intersection observer callback for infinite scroll
   const lastCardElementRef = useCallback((node: HTMLDivElement | null) => {
     if (isLoadingMore || isLoading) {
-      console.log('Skipping intersection observer setup - loading in progress');
       return;
     }
     
@@ -67,16 +73,8 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
     
     observer.current = new IntersectionObserver(entries => {
       const entry = entries[0];
-      console.log('Intersection observer triggered:', {
-        isIntersecting: entry.isIntersecting,
-        hasMore,
-        isLoadingMore,
-        isLoading,
-        feedDataLength: feedData.length
-      });
       
       if (entry.isIntersecting && hasMore && !isLoadingMore && !isLoading) {
-        console.log('Conditions met - loading more content...');
         loadMore();
       }
     }, {
@@ -85,7 +83,6 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
     });
     
     if (node) {
-      console.log('Setting up intersection observer on last card');
       observer.current.observe(node);
     }
   }, [isLoadingMore, hasMore, isLoading, loadMore, feedData.length]);
@@ -184,6 +181,9 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
         {feedData.map((card: SmartFeedResult, index: number) => {
           const isLastCard = index === feedData.length - 1;
           
+          // Check if this card is saved by the user
+          const isSaved = userSavedPosts?.some(savedPost => savedPost.linkUrl === card.url) || false;
+          
           return (
             <div
               key={`${card.url}-${index}`}
@@ -197,8 +197,10 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
                 imageUrl={card.imageUrl}
                 interest={currentInterest}
                 userId={userId}
+                isSaved={isSaved}
                 onEngagement={onEngagement}
                 onSave={onSave}
+                onUnsave={onUnsave}
                 onDislike={onDislike}
               />
             </div>
