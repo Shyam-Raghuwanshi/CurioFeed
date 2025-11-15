@@ -149,8 +149,6 @@ export async function getSmartFeedForUser(
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 500));
 
-  console.log('Mock feed request:', { userId, currentInterest, engagementData, limit });
-
   const feedData = MOCK_FEED_DATA[currentInterest] || [];
   
   // Return a slice of mock data

@@ -1,4 +1,4 @@
-import { UserButton, useUser } from "@clerk/clerk-react";
+import { useUser } from "@clerk/clerk-react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useState, useEffect, useMemo } from "react";
@@ -9,7 +9,6 @@ import {
   Heart, 
   DollarSign, 
   Sparkles,
-  Plus,
   X,
   CheckCircle,
   Circle,
@@ -20,6 +19,7 @@ import {
 import { INTEREST_OPTIONS } from "../utils/constants";
 import type { Interest } from "../utils/constants";
 import InfiniteFeed from "./InfiniteFeed";
+import Sidebar from "./Sidebar";
 import type { EngagementData } from "./FeedCard";
 
 // Interest icon mapping
@@ -222,121 +222,63 @@ export default function FeedPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Your Feed</h1>
-            <p className="text-sm text-gray-600">
-              {user?.emailAddresses[0]?.emailAddress}
-            </p>
-          </div>
-          
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => setShowEngagementHistory(true)}
-              className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <History className="w-4 h-4" />
-              <span>History</span>
-            </button>
-            
-            <button
-              onClick={() => setShowSavedPosts(true)}
-              className="flex items-center space-x-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <Bookmark className="w-4 h-4" />
-              <span>Saved ({getUserSavedPosts?.length || 0})</span>
-            </button>
-            
-            <UserButton 
-              appearance={{
-                elements: {
-                  avatarBox: "w-10 h-10"
-                }
-              }}
-            />
-          </div>
-        </div>
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* Sidebar */}
+      <Sidebar
+        currentUser={currentUser}
+        activeInterest={activeInterest}
+        isLoading={isLoading}
+        savedPostsCount={getUserSavedPosts?.length || 0}
+        onInterestClick={handleInterestClick}
+        onShowChangeInterests={() => setShowChangeInterests(true)}
+        onShowEngagementHistory={() => setShowEngagementHistory(true)}
+        onShowSavedPosts={() => setShowSavedPosts(true)}
+      />
 
-        {/* Interest Tabs */}
-        <div className="border-t bg-white">
-          <div className="max-w-6xl mx-auto px-4">
-            <div className="flex items-center space-x-3 py-4 overflow-x-auto scrollbar-hide">
-              {/* Active Interest Tabs */}
-              {currentUser.interests.map((interest: string) => {
-                const InterestIcon = interestIcons[interest as Interest] || Sparkles;
-                const isActive = activeInterest === interest;
-                
-                return (
-                  <button
-                    key={interest}
-                    onClick={() => handleInterestClick(interest as Interest)}
-                    disabled={isLoading}
-                    className={`
-                      flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-medium 
-                      whitespace-nowrap transition-all duration-200 min-w-fit
-                      ${isActive 
-                        ? 'bg-blue-600 text-white shadow-md' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }
-                      ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                    `}
-                  >
-                    <InterestIcon className="w-4 h-4" />
-                    <span>{interest}</span>
-                    {isLoading && isActive && (
-                      <div className="animate-spin rounded-full h-3 w-3 border border-white border-t-transparent"></div>
-                    )}
-                  </button>
-                );
-              })}
-
-              {/* Change Interests Button */}
-              <button
-                onClick={() => setShowChangeInterests(true)}
-                className="flex items-center space-x-2 px-4 py-2 rounded-full text-sm font-medium 
-                         bg-green-100 text-green-700 hover:bg-green-200 transition-all duration-200 
-                         whitespace-nowrap min-w-fit border-2 border-dashed border-green-300"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Change Interests</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Feed Content */}
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        {user?.id && (
-          <InfiniteFeed
-            userId={user.id}
-            currentInterest={activeInterest}
-            engagementData={formattedEngagementData}
-            onEngagement={handleEngagement}
-            onSave={handleSavePost}
-            onUnsave={handleUnsavePost}
-            onDislike={handleDislikePost}
-          />
-        )}
-        
-        {/* Fallback content when user ID is not available */}
-        {!user?.id && (
-          <div className="bg-white rounded-lg shadow-lg p-8">
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Loading your feed...
-              </h3>
-              <p className="text-gray-600">
-                Please wait while we prepare your personalized content.
+      {/* Main Content Area */}
+      <div className="flex-1 ml-64">
+        {/* Simplified Header */}
+        <header className="bg-white shadow-sm border-b sticky top-0 z-40">
+          <div className="max-w-5xl mx-auto px-6 py-6">
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Your Personalized Feed</h1>
+              <p className="text-lg text-gray-600">
+                Discover content tailored to your <span className="text-blue-600 font-medium">{activeInterest}</span> interests
               </p>
             </div>
           </div>
-        )}
-      </main>
+        </header>
+
+        {/* Feed Content */}
+        <main className="max-w-4xl mx-auto px-6 py-8">
+          {user?.id && (
+            <InfiniteFeed
+              userId={user.id}
+              currentInterest={activeInterest}
+              engagementData={formattedEngagementData}
+              onEngagement={handleEngagement}
+              onSave={handleSavePost}
+              onUnsave={handleUnsavePost}
+              onDislike={handleDislikePost}
+            />
+          )}
+          
+          {/* Fallback content when user ID is not available */}
+          {!user?.id && (
+            <div className="bg-white rounded-lg shadow-lg p-8">
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Loading your feed...
+                </h3>
+                <p className="text-gray-600">
+                  Please wait while we prepare your personalized content.
+                </p>
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
 
       {/* Change Interests Modal */}
       {showChangeInterests && (
