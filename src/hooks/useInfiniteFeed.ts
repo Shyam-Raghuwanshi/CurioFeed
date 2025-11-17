@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { type Interest } from '../utils/constants';
+import { buildApiUrl } from '../utils/config';
 
 // Types for feed data
 interface SmartFeedResult {
@@ -93,7 +94,7 @@ export const useInfiniteFeed = (
     offset: number,
     limit: number
   ): Promise<{ data: SmartFeedResult[], hasMore: boolean }> => {
-    const response = await fetch('/api/feed/crawl', {
+    const response = await fetch(buildApiUrl('/api/feed/crawl'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

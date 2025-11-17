@@ -42,7 +42,7 @@ app.get('/api/health', (req, res) => {
 
 // Test Firecrawl API key
 app.get('/api/test/apikey', (req, res) => {
-  const apiKey = process.env.VITE_FIRECRAWL_API_KEY;
+  const apiKey = "fc-0853aae8169243bf8d01d72755c91fe5";
   res.json({ 
     hasApiKey: !!apiKey,
     keyPreview: apiKey ? `${apiKey.substring(0, 8)}...` : null
@@ -66,7 +66,7 @@ app.post('/api/feed/crawl', async (req, res) => {
     const { crawlLinksForInterest } = await import('../src/server/crawl.ts');
     
     // Get the API key from environment
-    const apiKey = process.env.VITE_FIRECRAWL_API_KEY;
+    const apiKey = "fc-0853aae8169243bf8d01d72755c91fe5";
     
     // Always fetch fresh content for each request to ensure new content
     // This allows the infinite scroll to continue working by getting new search results
@@ -120,7 +120,7 @@ app.post('/api/feed/smart', async (req, res) => {
     const { crawlLinksForInterest } = await import('../src/server/crawl.ts');
     
     // Get the API key from environment
-    const apiKey = process.env.VITE_FIRECRAWL_API_KEY;
+    const apiKey = "fc-0853aae8169243bf8d01d72755c91fe5";
     
     const allItems = await crawlLinksForInterest(interest, Math.max(totalItems + offset, 20), apiKey);
     const paginatedItems = allItems.slice(offset, offset + totalItems);
@@ -157,7 +157,9 @@ app.use((error, req, res, next) => {
 
 // Catch-all handler for React Router (only in production)
 if (NODE_ENV !== 'development') {
-  app.get('*', (req, res) => {
+  app.use(express.static(join(__dirname, '..', 'dist')));
+  
+  app.get(/.*/, (req, res) => {
     res.sendFile(join(__dirname, '..', 'dist', 'index.html'));
   });
 }
@@ -170,7 +172,7 @@ app.listen(PORT, () => {
   console.log(`   GET  /api/test/apikey - Test API key`);
   console.log(`   POST /api/feed/crawl - Direct crawling`);
   console.log(`   POST /api/feed/smart - Smart feed (fallback to crawl)`);
-  console.log(`🔑 Firecrawl API Key: ${process.env.VITE_FIRECRAWL_API_KEY ? 'Found' : 'Missing'}`);
+  console.log(`🔑 Firecrawl API Key: Found (hardcoded)`);
 });
 
 export default app;
