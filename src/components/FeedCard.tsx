@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { ExternalLink, Bookmark, BookmarkCheck, ThumbsDown } from 'lucide-react';
+import { ExternalLink, Bookmark, BookmarkCheck, ThumbsDown, Sparkles, ChevronDown, Brain, Search, Lightbulb, TrendingUp, GitCompare } from 'lucide-react';
 import {
   startEngagementTimer,
   stopEngagementTimer,
@@ -7,6 +7,9 @@ import {
   useLogEngagement,
   type EngagementTimer
 } from '../utils/engagement';
+import { aiFeatures, type AIFeatureType, type AIResponse, shouldShowUpgrade } from '../services/aiService';
+import AIResultModal from './AIResultModal';
+import UpgradeNotification from './UpgradeNotification';
 
 // TypeScript interfaces
 export interface FeedCardProps {
@@ -47,11 +50,22 @@ const FeedCard: React.FC<FeedCardProps> = ({
   onDislike,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
+  const aiDropdownRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [timer, setTimer] = useState<EngagementTimer | null>(null);
   const [hasScrolled, setHasScrolled] = useState(false);
   const [isSaved, setIsSaved] = useState(initialSavedState);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // AI dropdown state
+  const [showAIDropdown, setShowAIDropdown] = useState(false);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [currentAIFeature, setCurrentAIFeature] = useState<string>('');
+  const [aiResult, setAiResult] = useState<AIResponse | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  
+  // Upgrade notification state
+  const [showUpgradeNotification, setShowUpgradeNotification] = useState(false);
   
   // Use refs to avoid stale closures in intersection observer
   const isVisibleRef = useRef(false);
@@ -75,6 +89,20 @@ const FeedCard: React.FC<FeedCardProps> = ({
   useEffect(() => {
     setIsSaved(initialSavedState);
   }, [initialSavedState]);
+
+  // Handle click outside to close AI dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (aiDropdownRef.current && !aiDropdownRef.current.contains(event.target as Node)) {
+        setShowAIDropdown(false);
+      }
+    };
+
+    if (showAIDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showAIDropdown]);
 
   // Convex mutation hook
   const logEngagement = useLogEngagement();
@@ -235,6 +263,97 @@ const FeedCard: React.FC<FeedCardProps> = ({
     }
   }, [timer, hasScrolled, handleEngagementLog, url, onDislike]);
 
+  // AI feature handlers
+  const handleAIFeature = useCallback(async (featureKey: AIFeatureType, featureName: string) => {
+    setCurrentAIFeature(featureName);
+    setAiModalOpen(true);
+    setAiLoading(true);
+    setShowAIDropdown(false);
+
+    try {
+      let result: AIResponse;
+      
+      switch (featureKey) {
+        case 'summarizeArticle':
+          result = await aiFeatures.summarizeArticle(title, excerpt, url);
+          break;
+        case 'deepResearch':
+          result = await aiFeatures.deepResearch(title, excerpt);
+          break;
+        case 'findRelatedTopics':
+          result = await aiFeatures.findRelatedTopics(title, excerpt, interest);
+          break;
+        case 'extractKeyInsights':
+          result = await aiFeatures.extractKeyInsights(title, excerpt);
+          break;
+        case 'analyzeTrends':
+          result = await aiFeatures.analyzeTrends(title, excerpt);
+          break;
+        case 'compareAndContrast':
+          result = await aiFeatures.compareAndContrast(title, excerpt);
+          break;
+        default:
+          throw new Error('Unknown AI feature');
+      }
+      
+      setAiResult(result);
+      
+      // Check if we should show upgrade notification
+      if (result.success && shouldShowUpgrade()) {
+        setTimeout(() => setShowUpgradeNotification(true), 2000);
+      }
+    } catch (error) {
+      console.error('AI feature error:', error);
+      setAiResult({
+        success: false,
+        content: '',
+        error: error instanceof Error ? error.message : 'An unexpected error occurred'
+      });
+    } finally {
+      setAiLoading(false);
+    }
+  }, [title, excerpt, url, interest]);
+
+  // AI features configuration
+  const aiFeaturesList = [
+    {
+      key: 'summarizeArticle' as AIFeatureType,
+      name: 'Smart Summary',
+      icon: Brain,
+      description: 'Get a comprehensive AI-generated summary'
+    },
+    {
+      key: 'deepResearch' as AIFeatureType,
+      name: 'Deep Research',
+      icon: Search,
+      description: 'Explore the topic with latest insights'
+    },
+    {
+      key: 'findRelatedTopics' as AIFeatureType,
+      name: 'Related Topics',
+      icon: Lightbulb,
+      description: 'Discover connected topics you\'ll love'
+    },
+    {
+      key: 'extractKeyInsights' as AIFeatureType,
+      name: 'Key Insights',
+      icon: Sparkles,
+      description: 'Extract strategic implications'
+    },
+    {
+      key: 'analyzeTrends' as AIFeatureType,
+      name: 'Trend Analysis',
+      icon: TrendingUp,
+      description: 'Analyze trends and predictions'
+    },
+    {
+      key: 'compareAndContrast' as AIFeatureType,
+      name: 'Compare & Contrast',
+      icon: GitCompare,
+      description: 'Compare with similar approaches'
+    }
+  ];
+
 
   return (
     <div
@@ -290,7 +409,73 @@ const FeedCard: React.FC<FeedCardProps> = ({
             Not interested
           </button>
         </div>
+
+        {/* AI Features Section */}
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <div className="relative" ref={aiDropdownRef}>
+            <button
+              onClick={() => setShowAIDropdown(!showAIDropdown)}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-md hover:from-purple-700 hover:to-blue-700 transition-all duration-200 w-full justify-center text-sm font-medium shadow-lg hover:shadow-xl"
+            >
+              <Sparkles size={16} className="animate-pulse" />
+              <span className="font-medium">AI Assistant</span>
+              <ChevronDown size={16} className={`transition-transform duration-200 ${showAIDropdown ? 'rotate-180' : ''}`} />
+            </button>
+
+            {/* AI Features Dropdown */}
+            {showAIDropdown && (
+              <div className=" top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 z-10 overflow-hidden">
+                <div className="py-2">
+                  {aiFeaturesList.map((feature) => {
+                    const IconComponent = feature.icon;
+                    return (
+                      <button
+                        key={feature.key}
+                        onClick={() => handleAIFeature(feature.key, feature.name)}
+                        className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors duration-200 w-full text-left group"
+                      >
+                        <div className="p-1.5 bg-gray-100 group-hover:bg-purple-100 rounded-lg transition-colors duration-200">
+                          <IconComponent size={16} className="text-gray-600 group-hover:text-purple-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 text-sm">{feature.name}</p>
+                          <p className="text-xs text-gray-500 line-clamp-1">{feature.description}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* AI Result Modal */}
+      <AIResultModal
+        isOpen={aiModalOpen}
+        onClose={() => {
+          setAiModalOpen(false);
+          setAiResult(null);
+          setCurrentAIFeature('');
+        }}
+        title={title}
+        featureTitle={currentAIFeature}
+        content={aiResult}
+        isLoading={aiLoading}
+        originalUrl={url}
+      />
+
+      {/* Upgrade Notification */}
+      <UpgradeNotification
+        isVisible={showUpgradeNotification}
+        onClose={() => setShowUpgradeNotification(false)}
+        onUpgrade={() => {
+          // In a real app, this would open upgrade/pricing page
+          alert('Upgrade to Pro for unlimited AI features!\n\n🚀 Unlimited AI requests\n💎 Advanced AI models\n⚡ Faster responses\n📊 Usage analytics');
+          setShowUpgradeNotification(false);
+        }}
+      />
     </div>
   );
 };
