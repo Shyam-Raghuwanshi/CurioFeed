@@ -62,8 +62,8 @@ app.post('/api/feed/crawl', async (req, res) => {
       });
     }
 
-    // Import crawl function dynamically to avoid ES module issues
-    const { crawlLinksForInterest } = await import('../src/server/crawl.ts');
+    // Import crawl function
+    const { crawlLinksForInterest } = await import('./crawl.js');
     
     // Get the API key from environment
     const apiKey = "fc-0853aae8169243bf8d01d72755c91fe5";
@@ -117,7 +117,7 @@ app.post('/api/feed/smart', async (req, res) => {
     }
 
     // For now, fall back to simple crawling until smart algorithm is properly integrated
-    const { crawlLinksForInterest } = await import('../src/server/crawl.ts');
+    const { crawlLinksForInterest } = await import('./crawl.js');
     
     // Get the API key from environment
     const apiKey = "fc-0853aae8169243bf8d01d72755c91fe5";
