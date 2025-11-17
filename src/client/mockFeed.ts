@@ -141,9 +141,9 @@ const MOCK_FEED_DATA: Record<Interest, SmartFeedResult[]> = {
  * In production, this should make API calls to your backend
  */
 export async function getSmartFeedForUser(
-  userId: string,
+  _userId: string,
   currentInterest: Interest,
-  engagementData: EngagementData[],
+  _engagementData: EngagementData[],
   limit: number = 10
 ): Promise<SmartFeedResult[]> {
   // Simulate API delay
