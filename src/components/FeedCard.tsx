@@ -7,9 +7,14 @@ import {
   useLogEngagement,
   type EngagementTimer
 } from '../utils/engagement';
-import { aiFeatures, type AIFeatureType, type AIResponse, shouldShowUpgrade } from '../services/aiService';
+import { type AIResponse, prepareSummarizeArticle, prepareDeepResearch, prepareFindRelatedTopics, prepareExtractKeyInsights, prepareAnalyzeTrends, prepareCompareAndContrast } from '../services/aiService';
+import { api } from '../../convex/_generated/api';
+import { useAction } from 'convex/react';
 import AIResultModal from './AIResultModal';
 import UpgradeNotification from './UpgradeNotification';
+
+// AI Feature type definition
+type AIFeatureType = 'summarizeArticle' | 'deepResearch' | 'findRelatedTopics' | 'extractKeyInsights' | 'analyzeTrends' | 'compareAndContrast';
 
 // TypeScript interfaces
 export interface FeedCardProps {
@@ -49,6 +54,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
   onUnsave,
   onDislike,
 }) => {
+  const makePerplexityRequest = useAction(api.autumnAI.makePerplexityRequest);
   const cardRef = useRef<HTMLDivElement>(null);
   const aiDropdownRef = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -274,32 +280,62 @@ const FeedCard: React.FC<FeedCardProps> = ({
       let result: AIResponse;
       
       switch (featureKey) {
-        case 'summarizeArticle':
-          result = await aiFeatures.summarizeArticle(title, excerpt, url);
+        case 'summarizeArticle': {
+          const requestData = prepareSummarizeArticle(`${title}\n\n${excerpt}`);
+          result = await makePerplexityRequest({
+            ...requestData,
+            userId
+          });
           break;
-        case 'deepResearch':
-          result = await aiFeatures.deepResearch(title, excerpt);
+        }
+        case 'deepResearch': {
+          const requestData = prepareDeepResearch(title);
+          result = await makePerplexityRequest({
+            ...requestData,
+            userId
+          });
           break;
-        case 'findRelatedTopics':
-          result = await aiFeatures.findRelatedTopics(title, excerpt, interest);
+        }
+        case 'findRelatedTopics': {
+          const requestData = prepareFindRelatedTopics(interest);
+          result = await makePerplexityRequest({
+            ...requestData,
+            userId
+          });
           break;
-        case 'extractKeyInsights':
-          result = await aiFeatures.extractKeyInsights(title, excerpt);
+        }
+        case 'extractKeyInsights': {
+          const requestData = prepareExtractKeyInsights(`${title}\n\n${excerpt}`);
+          result = await makePerplexityRequest({
+            ...requestData,
+            userId
+          });
           break;
-        case 'analyzeTrends':
-          result = await aiFeatures.analyzeTrends(title, excerpt);
+        }
+        case 'analyzeTrends': {
+          const requestData = prepareAnalyzeTrends(interest);
+          result = await makePerplexityRequest({
+            ...requestData,
+            userId
+          });
           break;
-        case 'compareAndContrast':
-          result = await aiFeatures.compareAndContrast(title, excerpt);
+        }
+        case 'compareAndContrast': {
+          const requestData = prepareCompareAndContrast(title, interest);
+          result = await makePerplexityRequest({
+            ...requestData,
+            userId
+          });
           break;
+        }
         default:
           throw new Error('Unknown AI feature');
       }
       
       setAiResult(result);
       
-      // Check if we should show upgrade notification
-      if (result.success && shouldShowUpgrade()) {
+      // Check if we should show upgrade notification based on the result
+      if (result.success && result.upgradeRequired) {
         setTimeout(() => setShowUpgradeNotification(true), 2000);
       }
     } catch (error) {
@@ -307,7 +343,9 @@ const FeedCard: React.FC<FeedCardProps> = ({
       setAiResult({
         success: false,
         content: '',
-        error: error instanceof Error ? error.message : 'An unexpected error occurred'
+        error: error instanceof Error ? error.message : 'An unexpected error occurred',
+        usageRemaining: 0,
+        upgradeRequired: true
       });
     } finally {
       setAiLoading(false);
@@ -412,7 +450,7 @@ const FeedCard: React.FC<FeedCardProps> = ({
 
         {/* AI Features Section */}
         <div className="mt-3 pt-3 border-t border-gray-100">
-          <div className="relative" ref={aiDropdownRef}>
+          <div ref={aiDropdownRef}>
             <button
               onClick={() => setShowAIDropdown(!showAIDropdown)}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-md hover:from-purple-700 hover:to-blue-700 transition-all duration-200 w-full justify-center text-sm font-medium shadow-lg hover:shadow-xl"

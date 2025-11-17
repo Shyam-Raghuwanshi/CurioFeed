@@ -115,32 +115,6 @@ const AIResultModal: React.FC<AIResultModalProps> = ({
                   }}
                 />
               </div>
-
-              {/* Sources */}
-              {content.sources && content.sources.length > 0 && (
-                <div className="border-t border-gray-200 pt-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <ExternalLink size={18} />
-                    Sources & References
-                  </h3>
-                  <div className="space-y-2">
-                    {content.sources.map((source, index) => (
-                      <a
-                        key={index}
-                        href={source}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors group"
-                      >
-                        <ExternalLink size={14} className="text-gray-500 group-hover:text-blue-600" />
-                        <span className="text-sm text-gray-700 group-hover:text-blue-700 truncate">
-                          {source}
-                        </span>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 

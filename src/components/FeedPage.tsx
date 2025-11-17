@@ -238,7 +238,7 @@ export default function FeedPage() {
       {/* Main Content Area */}
       <div className="flex-1 ml-64">
         {/* Simplified Header */}
-        <header className="bg-white shadow-sm border-b sticky top-0 z-40">
+        <header className="bg-white shadow-sm border-b static top-0 z-40">
           <div className="max-w-5xl mx-auto px-6 py-6">
             <div className="text-center">
               <h1 className="text-3xl font-bold text-gray-900 mb-2">Your Personalized Feed</h1>

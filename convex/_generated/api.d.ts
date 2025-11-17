@@ -8,6 +8,10 @@
  * @module
  */
 
+import type * as aiUsage from "../aiUsage.js";
+import type * as autumn from "../autumn.js";
+import type * as autumnAI from "../autumnAI.js";
+import type * as billing from "../billing.js";
 import type * as queries from "../queries.js";
 import type * as users from "../users.js";
 
@@ -26,6 +30,10 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  aiUsage: typeof aiUsage;
+  autumn: typeof autumn;
+  autumnAI: typeof autumnAI;
+  billing: typeof billing;
   queries: typeof queries;
   users: typeof users;
 }>;
@@ -40,4 +48,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  autumn: {};
+};

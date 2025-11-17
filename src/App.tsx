@@ -7,6 +7,7 @@ import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ClerkProvider, useAuth } from "@clerk/clerk-react";
 import { OnboardingProvider } from "./context/OnboardingContext";
 import { ToastContainer } from "./components/Toast";
+import { AutumnWrapper } from "./components/AutumnWrapper";
 import { logEnvironmentStatus } from "./utils/envCheck";
 
 const queryClient = new QueryClient();
@@ -31,12 +32,14 @@ function App() {
   return (
     <ClerkProvider publishableKey={clerkPK}>
       <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-        <OnboardingProvider>
-          <QueryClientProvider client={queryClient}>
-            <RouterProvider router={router} />
-            <ToastContainer />
-          </QueryClientProvider>
-        </OnboardingProvider>
+        <AutumnWrapper>
+          <OnboardingProvider>
+            <QueryClientProvider client={queryClient}>
+              <RouterProvider router={router} />
+              <ToastContainer />
+            </QueryClientProvider>
+          </OnboardingProvider>
+        </AutumnWrapper>
       </ConvexProviderWithClerk>
     </ClerkProvider>
   );

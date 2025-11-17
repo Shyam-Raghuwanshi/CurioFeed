@@ -10,9 +10,14 @@ import {
   History,
   Bookmark,
   Home,
-  Settings
+  Settings,
+  Crown
 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useAction } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import type { Interest } from "../utils/constants";
+import UpgradeModal from "./UpgradeModal";
 
 // Interest icon mapping
 const interestIcons = {
@@ -46,6 +51,55 @@ export default function Sidebar({
   onShowSavedPosts,
 }: SidebarProps) {
   const { user } = useUser();
+  const getSubscriptionStatus = useAction(api.billing.getSubscriptionStatus);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<{
+    isActive: boolean;
+    planType: 'free' | 'blaze';
+    usageRemaining: number;
+  }>({
+    isActive: false,
+    planType: 'free',
+    usageRemaining: 1,
+  });
+
+  useEffect(() => {
+    const checkUsage = async () => {
+      if (user?.id) {
+        try {
+          console.log('Checking subscription status for user:', user.id);
+          
+          // Use Convex action to check subscription status
+          const result = await getSubscriptionStatus({ userId: user.id });
+          
+          if (result.success && result.subscription) {
+            setSubscriptionStatus({
+              isActive: result.subscription.isActive,
+              planType: result.subscription.planType as 'free' | 'blaze',
+              usageRemaining: result.subscription.usageRemaining,
+            });
+          } else {
+            // Fallback to free plan
+            setSubscriptionStatus({
+              isActive: false,
+              planType: 'free',
+              usageRemaining: 1,
+            });
+          }
+        } catch (error: any) {
+          console.error('Failed to get subscription status:', error);
+          // Fallback to free plan on error
+          setSubscriptionStatus({
+            isActive: false,
+            planType: 'free',
+            usageRemaining: 1,
+          });
+        }
+      }
+    };
+
+    checkUsage();
+  }, [user?.id, getSubscriptionStatus]);
 
   return (
     <div className="fixed left-0 top-0 h-full w-64 bg-white shadow-lg border-r border-gray-200 flex flex-col">
@@ -172,13 +226,78 @@ export default function Sidebar({
         </div>
       </div>
 
+      {/* Upgrade Section */}
+      {subscriptionStatus.planType === 'free' && (
+        <div className="p-4 border-t border-gray-100">
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center space-x-2 mb-2">
+              <Crown className="w-5 h-5 text-yellow-500" />
+              <h3 className="font-semibold text-gray-900">Upgrade to Pro</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-3">
+              Unlock unlimited AI insights and advanced features.
+            </p>
+            <div className="mb-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">AI Requests</span>
+                <span className="font-medium text-gray-900">
+                  {subscriptionStatus.usageRemaining} left today
+                </span>
+              </div>
+              <div className="mt-1 bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2 rounded-full transition-all"
+                  style={{ 
+                    width: `${Math.max(0, Math.min(100, (subscriptionStatus.usageRemaining / 1) * 100))}%` 
+                  }}
+                />
+              </div>
+            </div>
+            <button
+              onClick={() => setShowUpgradeModal(true)}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 
+                       text-white text-sm font-semibold py-2 px-4 rounded-lg transition-all duration-200 
+                       flex items-center justify-center space-x-2"
+            >
+              <Crown className="w-4 h-4" />
+              <span>Upgrade Now</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Blaze Badge for Blaze Users */}
+      {subscriptionStatus.planType === 'blaze' && (
+        <div className="p-4 border-t border-gray-100">
+          <div className="bg-gradient-to-br from-orange-50 to-red-50 border border-orange-200 rounded-lg p-4">
+            <div className="flex items-center space-x-2 mb-2">
+              <Crown className="w-5 h-5 text-orange-500" />
+              <h3 className="font-semibold text-gray-900">Blaze Subscriber</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-3">
+              You have unlimited access to all AI features.
+            </p>
+            <div className="flex items-center space-x-2 text-sm text-green-600">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="font-medium">Unlimited AI requests</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer Section */}
       <div className="p-4 border-t border-gray-200">
         <div className="text-xs text-gray-500 text-center">
           <p>© 2024 CurioFeed</p>
-          <p className="mt-1">Powered by AI</p>
         </div>
       </div>
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        currentPlan={subscriptionStatus.planType}
+      />
     </div>
   );
 }

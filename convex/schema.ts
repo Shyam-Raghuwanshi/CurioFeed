@@ -49,4 +49,14 @@ export default defineSchema({
     .index("by_interest", ["interest"])
     .index("by_interest_and_active", ["interest", "isActive"])
     .index("by_scraped_at", ["scrapedAt"]),
+
+  aiUsage: defineTable({
+    userId: v.string(), // Reference to users.userId
+    date: v.string(), // Date string (YYYY-MM-DD) for daily tracking
+    count: v.number(), // Number of AI requests made on this date
+    limit: v.number(), // Daily limit for this user (5 for free users)
+    lastUpdated: v.number(), // Timestamp of last update
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_date", ["userId", "date"]),
 });
