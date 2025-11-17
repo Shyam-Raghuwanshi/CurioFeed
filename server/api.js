@@ -164,15 +164,18 @@ if (NODE_ENV !== 'development') {
   });
 }
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 API Server running on http://localhost:${PORT}`);
-  console.log(`📡 Endpoints available:`);
-  console.log(`   GET  /api/health - Health check`);
-  console.log(`   GET  /api/test/apikey - Test API key`);
-  console.log(`   POST /api/feed/crawl - Direct crawling`);
-  console.log(`   POST /api/feed/smart - Smart feed (fallback to crawl)`);
-  console.log(`🔑 Firecrawl API Key: Found (hardcoded)`);
-});
+// Start server in development mode only
+if (NODE_ENV === 'development') {
+  app.listen(PORT, () => {
+    console.log(`🚀 API Server running on http://localhost:${PORT}`);
+    console.log(`📡 Endpoints available:`);
+    console.log(`   GET  /api/health - Health check`);
+    console.log(`   GET  /api/test/apikey - Test API key`);
+    console.log(`   POST /api/feed/crawl - Direct crawling`);
+    console.log(`   POST /api/feed/smart - Smart feed (fallback to crawl)`);
+    console.log(`🔑 Firecrawl API Key: Found (hardcoded)`);
+  });
+}
 
+// Export for Vercel serverless functions
 export default app;
