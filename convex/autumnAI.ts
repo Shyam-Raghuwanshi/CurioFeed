@@ -1,6 +1,7 @@
-import { mutation, query, action } from "./_generated/server";
+import { mutation, query, action, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { Autumn } from 'autumn-js';
+import { internal } from "./_generated/api";
 
 // Type-safe environment variable access
 const getEnvVar = (name: string): string => {
@@ -75,6 +76,51 @@ export const trackAIUsage = mutation({
 });
 
 /**
+ * Internal mutation to increment AI usage in the database
+ */
+export const incrementAIUsageInternal = internalMutation({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, { userId }) => {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    const now = Date.now();
+
+    const existingUsage = await ctx.db
+      .query("aiUsage")
+      .withIndex("by_user_and_date", (q) => q.eq("userId", userId).eq("date", today))
+      .first();
+
+    if (existingUsage) {
+      // Update existing record
+      await ctx.db.patch(existingUsage._id, {
+        count: existingUsage.count + 1,
+        lastUpdated: now,
+      });
+
+      return {
+        count: existingUsage.count + 1,
+        limit: existingUsage.limit,
+      };
+    } else {
+      // Create new record for today
+      await ctx.db.insert("aiUsage", {
+        userId,
+        date: today,
+        count: 1,
+        limit: 2, // Default free tier limit
+        lastUpdated: now,
+      });
+
+      return {
+        count: 1,
+        limit: 2,
+      };
+    }
+  },
+});
+
+/**
  * Make Perplexity API request with usage checking  
  */
 export const makePerplexityRequest = action({
@@ -86,7 +132,7 @@ export const makePerplexityRequest = action({
     temperature: v.optional(v.number()),
     userId: v.string(),
   },
-  handler: async (_, { prompt, systemPrompt, model, maxTokens, temperature, userId }) => {
+  handler: async (ctx, { prompt, systemPrompt, model, maxTokens, temperature, userId }) => {
     // Check usage directly with Autumn
     let usageInfo;
     try {
@@ -159,7 +205,7 @@ export const makePerplexityRequest = action({
 
       const data = await response.json();
       
-      // Track successful usage
+      // Track successful usage in both Autumn and our database
       try {
         const autumn = getAutumn();
         await autumn.track({
@@ -167,7 +213,14 @@ export const makePerplexityRequest = action({
           feature_id: AI_FEATURE_ID,
         });
       } catch (error) {
-        console.error('Failed to track AI usage:', error);
+        console.error('Failed to track AI usage in Autumn:', error);
+      }
+
+      // Track in our database
+      try {
+        await ctx.runMutation(internal.autumnAI.incrementAIUsageInternal, { userId });
+      } catch (error) {
+        console.error('Failed to track AI usage in database:', error);
       }
 
       // Get updated usage info

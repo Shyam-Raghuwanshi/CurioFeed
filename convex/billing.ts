@@ -1,6 +1,7 @@
-import { action } from "./_generated/server";
+import { action, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { Autumn } from 'autumn-js';
+import { internal } from "./_generated/api";
 
 // Type-safe environment variable access
 const getEnvVar = (name: string): string => {
@@ -53,15 +54,57 @@ export const createCheckoutSession = action({
 });
 
 /**
+ * Internal query to get AI usage data
+ */
+export const getAiUsageInternal = internalQuery({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, { userId }) => {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    const usage = await ctx.db
+      .query("aiUsage")
+      .withIndex("by_user_and_date", (q) => q.eq("userId", userId).eq("date", today))
+      .first();
+
+    if (!usage) {
+      return {
+        count: 0,
+        limit: 2,
+      };
+    }
+
+    return {
+      count: usage.count,
+      limit: usage.limit,
+    };
+  },
+});
+
+/**
  * Check user's current subscription status
  */
 export const getSubscriptionStatus = action({
   args: {
     userId: v.string(),
   },
-  handler: async (_, { userId }) => {
+  handler: async (ctx, { userId }): Promise<{
+    success: boolean;
+    subscription: {
+      isActive: boolean;
+      planType: string;
+      status: string;
+      usageRemaining: number;
+      totalLimit: number;
+    };
+  }> => {
     try {
       console.log('[Autumn] Checking subscription for user:', userId);
+      
+      // Get AI usage data
+      const aiUsage: { count: number; limit: number } = await ctx.runQuery(internal.billing.getAiUsageInternal, { userId });
+      const usageRemaining = Math.max(0, aiUsage.limit - aiUsage.count);
       
       // For now, let's start with a simple approach and always return free
       // until we understand exactly what data structure Autumn returns
@@ -73,7 +116,8 @@ export const getSubscriptionStatus = action({
           isActive: false,
           planType: 'free',
           status: 'inactive',
-          usageRemaining: 1,
+          usageRemaining: usageRemaining,
+          totalLimit: aiUsage.limit,
         }
       };
 
@@ -88,7 +132,8 @@ export const getSubscriptionStatus = action({
           isActive: false,
           planType: 'free',
           status: 'inactive',
-          usageRemaining: 1,
+          usageRemaining: 2,
+          totalLimit: 2,
         }
       };
     }

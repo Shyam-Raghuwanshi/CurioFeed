@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, ExternalLink, Copy, Check, Sparkles, Zap, Crown } from 'lucide-react';
 import type { AIResponse } from '../services/aiService';
+import UpgradeModal from './UpgradeModal';
 
 interface AIResultModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ const AIResultModal: React.FC<AIResultModalProps> = ({
   originalUrl
 }) => {
   const [copied, setCopied] = React.useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = React.useState(false);
 
   if (!isOpen) return null;
 
@@ -40,7 +42,7 @@ const AIResultModal: React.FC<AIResultModalProps> = ({
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
       onClick={handleBackdropClick}
     >
@@ -103,7 +105,7 @@ const AIResultModal: React.FC<AIResultModalProps> = ({
             <div className="space-y-6">
               {/* Main Content */}
               <div className="prose prose-blue max-w-none">
-                <div 
+                <div
                   className="text-gray-800 leading-relaxed whitespace-pre-wrap"
                   dangerouslySetInnerHTML={{
                     __html: content.content
@@ -127,14 +129,11 @@ const AIResultModal: React.FC<AIResultModalProps> = ({
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">Upgrade to Pro</h3>
                   <p className="text-gray-600 text-center max-w-md mb-4">
-                    You've reached your daily limit of {5} AI requests. Upgrade to Pro for unlimited AI features!
+                    You've reached your daily limit of {2} AI requests. Upgrade to Pro for unlimited AI features!
                   </p>
                   <div className="flex gap-3">
                     <button
-                      onClick={() => {
-                        // In a real app, this would open a pricing/upgrade modal
-                        alert('Upgrade feature would be implemented here!');
-                      }}
+                      onClick={() => setShowUpgradeModal(true)}
                       className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg transition-all duration-200 font-medium"
                     >
                       <Crown size={16} />
@@ -179,7 +178,7 @@ const AIResultModal: React.FC<AIResultModalProps> = ({
                 <span>{content.usageRemaining} AI requests remaining today</span>
                 {content.usageRemaining <= 2 && (
                   <button
-                    onClick={() => alert('Upgrade to Pro for unlimited AI requests!')}
+                    onClick={() => setShowUpgradeModal(true)}
                     className="text-purple-600 hover:text-purple-700 font-medium ml-2"
                   >
                     Upgrade
@@ -190,6 +189,13 @@ const AIResultModal: React.FC<AIResultModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        currentPlan="free"
+      />
     </div>
   );
 };

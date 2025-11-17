@@ -20,7 +20,7 @@ export const getCurrentUsage = query({
       // Return default usage info if no record exists
       return {
         count: 0,
-        limit: 5, // Default free tier limit
+        limit: 2, // Default free tier limit
         date: today,
         hasRemaining: true,
       };
@@ -70,13 +70,13 @@ export const incrementUsage = mutation({
         userId,
         date: today,
         count: 1,
-        limit: 5, // Default free tier limit
+        limit: 2, // Default free tier limit
         lastUpdated: now,
       });
 
       return {
         count: 1,
-        limit: 5,
+        limit: 2,
         date: today,
         hasRemaining: true,
       };

@@ -54,7 +54,7 @@ export default defineSchema({
     userId: v.string(), // Reference to users.userId
     date: v.string(), // Date string (YYYY-MM-DD) for daily tracking
     count: v.number(), // Number of AI requests made on this date
-    limit: v.number(), // Daily limit for this user (5 for free users)
+    limit: v.number(), // Daily limit for this user (2 for free users)
     lastUpdated: v.number(), // Timestamp of last update
   })
     .index("by_user", ["userId"])

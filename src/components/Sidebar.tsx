@@ -57,10 +57,12 @@ export default function Sidebar({
     isActive: boolean;
     planType: 'free' | 'blaze';
     usageRemaining: number;
+    totalLimit: number;
   }>({
     isActive: false,
     planType: 'free',
-    usageRemaining: 1,
+    usageRemaining: 2,
+    totalLimit: 2,
   });
 
   useEffect(() => {
@@ -77,13 +79,15 @@ export default function Sidebar({
               isActive: result.subscription.isActive,
               planType: result.subscription.planType as 'free' | 'blaze',
               usageRemaining: result.subscription.usageRemaining,
+              totalLimit: result.subscription.totalLimit || 2,
             });
           } else {
             // Fallback to free plan
             setSubscriptionStatus({
               isActive: false,
               planType: 'free',
-              usageRemaining: 1,
+              usageRemaining: 2,
+              totalLimit: 2,
             });
           }
         } catch (error: any) {
@@ -92,13 +96,21 @@ export default function Sidebar({
           setSubscriptionStatus({
             isActive: false,
             planType: 'free',
-            usageRemaining: 1,
+            usageRemaining: 2,
+            totalLimit: 2,
           });
         }
       }
     };
 
+    // Check immediately on mount
     checkUsage();
+    
+    // Set up polling interval to refresh usage every 10 seconds
+    const intervalId = setInterval(checkUsage, 10000);
+    
+    // Cleanup interval on unmount
+    return () => clearInterval(intervalId);
   }, [user?.id, getSubscriptionStatus]);
 
   return (
@@ -241,14 +253,14 @@ export default function Sidebar({
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">AI Requests</span>
                 <span className="font-medium text-gray-900">
-                  {subscriptionStatus.usageRemaining} left today
+                  {subscriptionStatus.usageRemaining} / {subscriptionStatus.totalLimit} today
                 </span>
               </div>
               <div className="mt-1 bg-gray-200 rounded-full h-2">
                 <div 
                   className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2 rounded-full transition-all"
                   style={{ 
-                    width: `${Math.max(0, Math.min(100, (subscriptionStatus.usageRemaining / 1) * 100))}%` 
+                    width: `${Math.max(0, Math.min(100, (subscriptionStatus.usageRemaining / subscriptionStatus.totalLimit) * 100))}%` 
                   }}
                 />
               </div>
