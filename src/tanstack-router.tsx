@@ -190,6 +190,29 @@ const debugRoute = createRoute({
   component: DebugAIUsage,
 })
 
+// Catch-all route for undefined paths
+const catchAllRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/$',
+  component: function CatchAllComponent() {
+    const { isSignedIn, isLoaded } = useAuth()
+    const { isOnboardingCompleted, isLoading: onboardingLoading } = useOnboarding()
+
+    if (!isLoaded || onboardingLoading) return <LoadingSpinner />
+    
+    // Redirect to appropriate page based on auth status
+    if (isSignedIn) {
+      if (isOnboardingCompleted) {
+        return <Navigate to="/feed" replace />
+      } else {
+        return <Navigate to="/onboarding" replace />
+      }
+    } else {
+      return <Navigate to="/" replace />
+    }
+  },
+})
+
 // Create the route tree
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -199,6 +222,7 @@ const routeTree = rootRoute.addChildren([
   feedRoute,
   savedRoute,
   debugRoute,
+  catchAllRoute,
 ])
 
 // Create the router
