@@ -1,22 +1,10 @@
 import { mutation, query, action, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { Autumn } from 'autumn-js';
 import { internal } from "./_generated/api";
 
 // Type-safe environment variable access
 const getEnvVar = (name: string): string => {
   return (globalThis as any).process?.env?.[name] ?? "";
-};
-
-const AI_FEATURE_ID = 'ai-requests';
-
-// Initialize Autumn with server-side secret key
-const getAutumn = () => {
-  const secretKey = getEnvVar("AUTUMN_SECRET_KEY");
-  if (!secretKey) {
-    throw new Error('AUTUMN_SECRET_KEY environment variable is not set');
-  }
-  return new Autumn({ secretKey });
 };
 
 /**
