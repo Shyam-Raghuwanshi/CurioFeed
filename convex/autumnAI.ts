@@ -20,33 +20,47 @@ const getAutumn = () => {
 };
 
 /**
- * Check AI usage with Autumn
+ * Check AI usage with Convex database
  */
 export const checkAIUsage = query({
   args: {
     userId: v.string(),
   },
-  handler: async (_, { userId }) => {
+  handler: async (ctx, { userId }) => {
     try {
-      const autumn = getAutumn();
-      const { data } = await autumn.check({
-        customer_id: userId,
-        feature_id: AI_FEATURE_ID,
-      });
+      const today = new Date().toISOString().split('T')[0];
+      
+      const usage = await ctx.db
+        .query("aiUsage")
+        .withIndex("by_user_and_date", (q) => q.eq("userId", userId).eq("date", today))
+        .first();
+
+      if (!usage) {
+        // Return default usage info for new users
+        return {
+          allowed: true,
+          balance: 2,
+          limit: 2,
+          upgradeRequired: false
+        };
+      }
+
+      const remaining = Math.max(0, usage.limit - usage.count);
+      const allowed = remaining > 0;
 
       return {
-        allowed: data?.allowed || false,
-        balance: data?.balance || 0,
-        limit: 1, // 1 free request for new users, unlimited for pro
-        upgradeRequired: !data?.allowed
+        allowed: allowed,
+        balance: remaining,
+        limit: usage.limit,
+        upgradeRequired: !allowed
       };
     } catch (error) {
       console.error('Failed to check AI usage:', error);
-      // Default to allowing 1 free request on error
+      // Default to allowing requests on error
       return {
         allowed: true,
-        balance: 1,
-        limit: 1,
+        balance: 2,
+        limit: 2,
         upgradeRequired: false
       };
     }
@@ -54,20 +68,50 @@ export const checkAIUsage = query({
 });
 
 /**
- * Track AI usage with Autumn
+ * Track AI usage in Convex database
  */
 export const trackAIUsage = mutation({
   args: {
     userId: v.string(),
   },
-  handler: async (_, { userId }) => {
+  handler: async (ctx, { userId }) => {
     try {
-      const autumn = getAutumn();
-      await autumn.track({
-        customer_id: userId,
-        feature_id: AI_FEATURE_ID,
-      });
-      return { success: true };
+      const today = new Date().toISOString().split('T')[0];
+      const now = Date.now();
+
+      const existingUsage = await ctx.db
+        .query("aiUsage")
+        .withIndex("by_user_and_date", (q) => q.eq("userId", userId).eq("date", today))
+        .first();
+
+      if (existingUsage) {
+        // Update existing record
+        await ctx.db.patch(existingUsage._id, {
+          count: existingUsage.count + 1,
+          lastUpdated: now,
+        });
+
+        return { 
+          success: true,
+          count: existingUsage.count + 1,
+          limit: existingUsage.limit
+        };
+      } else {
+        // Create new record for today
+        await ctx.db.insert("aiUsage", {
+          userId,
+          date: today,
+          count: 1,
+          limit: 2, // Default free tier limit
+          lastUpdated: now,
+        });
+
+        return { 
+          success: true,
+          count: 1,
+          limit: 2
+        };
+      }
     } catch (error) {
       console.error('Failed to track AI usage:', error);
       return { success: false, error: String(error) };
@@ -133,27 +177,39 @@ export const makePerplexityRequest = action({
     userId: v.string(),
   },
   handler: async (ctx, { prompt, systemPrompt, model, maxTokens, temperature, userId }) => {
-    // Check usage directly with Autumn
+    // Check usage from Convex database instead of Autumn
     let usageInfo;
     try {
-      const autumn = getAutumn();
-      const { data } = await autumn.check({
-        customer_id: userId,
-        feature_id: AI_FEATURE_ID,
-      });
+      // Get AI usage from our database
+      const aiUsageData: { count: number; limit: number } = await ctx.runQuery(
+        internal.billing.getAiUsageInternal, 
+        { userId }
+      );
+
+      const usageRemaining = Math.max(0, aiUsageData.limit - aiUsageData.count);
+      const allowed = usageRemaining > 0;
 
       usageInfo = {
-        allowed: data?.allowed || false,
-        balance: data?.balance || 0,
-        limit: 1,
-        upgradeRequired: !data?.allowed
+        allowed: allowed,
+        balance: usageRemaining,
+        limit: aiUsageData.limit,
+        upgradeRequired: !allowed
       };
+
+      console.log('[AI Request] Usage check:', {
+        userId,
+        count: aiUsageData.count,
+        limit: aiUsageData.limit,
+        remaining: usageRemaining,
+        allowed
+      });
     } catch (error) {
-      console.error('Failed to check AI usage:', error);
+      console.error('Failed to check AI usage from database:', error);
+      // Default to allowing requests on error (fail open)
       usageInfo = {
         allowed: true,
-        balance: 1,
-        limit: 1,
+        balance: 2,
+        limit: 2,
         upgradeRequired: false
       };
     }
@@ -162,7 +218,7 @@ export const makePerplexityRequest = action({
       return {
         success: false,
         content: '',
-        error: 'You have used your free AI request. Upgrade to Pro for unlimited access!',
+        error: `You've reached your daily limit of ${usageInfo.limit} AI requests. Upgrade to Pro for unlimited AI features!`,
         usageRemaining: usageInfo.balance,
         upgradeRequired: true
       };
@@ -205,41 +261,28 @@ export const makePerplexityRequest = action({
 
       const data = await response.json();
       
-      // Track successful usage in both Autumn and our database
-      try {
-        const autumn = getAutumn();
-        await autumn.track({
-          customer_id: userId,
-          feature_id: AI_FEATURE_ID,
-        });
-      } catch (error) {
-        console.error('Failed to track AI usage in Autumn:', error);
-      }
-
-      // Track in our database
-      try {
-        await ctx.runMutation(internal.autumnAI.incrementAIUsageInternal, { userId });
-      } catch (error) {
-        console.error('Failed to track AI usage in database:', error);
-      }
-
-      // Get updated usage info
+      // Track successful usage in our database
       let updatedUsage = usageInfo;
       try {
-        const autumn = getAutumn();
-        const { data: updatedData } = await autumn.check({
-          customer_id: userId,
-          feature_id: AI_FEATURE_ID,
-        });
-
+        const result = await ctx.runMutation(internal.autumnAI.incrementAIUsageInternal, { userId });
+        
+        // Update usage info with the new count
         updatedUsage = {
-          allowed: updatedData?.allowed || false,
-          balance: updatedData?.balance || 0,
-          limit: 1,
-          upgradeRequired: !updatedData?.allowed
+          allowed: result.count < result.limit,
+          balance: Math.max(0, result.limit - result.count),
+          limit: result.limit,
+          upgradeRequired: result.count >= result.limit
         };
+
+        console.log('[AI Request] Usage incremented:', {
+          userId,
+          count: result.count,
+          limit: result.limit,
+          remaining: updatedUsage.balance
+        });
       } catch (error) {
-        console.error('Failed to get updated usage:', error);
+        console.error('Failed to track AI usage in database:', error);
+        // Use previous usage info if increment fails
       }
 
       return {

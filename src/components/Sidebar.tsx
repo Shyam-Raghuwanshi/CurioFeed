@@ -250,17 +250,26 @@ export default function Sidebar({
               Unlock unlimited AI insights and advanced features.
             </p>
             <div className="mb-3">
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between text-sm mb-1">
                 <span className="text-gray-600">AI Requests</span>
                 <span className="font-medium text-gray-900">
-                  {subscriptionStatus.usageRemaining} / {subscriptionStatus.totalLimit} today
+                  {subscriptionStatus.totalLimit - subscriptionStatus.usageRemaining} / {subscriptionStatus.totalLimit} used
                 </span>
               </div>
-              <div className="mt-1 bg-gray-200 rounded-full h-2">
+              <div className="text-xs text-gray-500 mb-2">
+                {subscriptionStatus.usageRemaining} {subscriptionStatus.usageRemaining === 1 ? 'request' : 'requests'} remaining
+              </div>
+              <div className="bg-gray-200 rounded-full h-2">
                 <div 
-                  className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2 rounded-full transition-all"
+                  className={`h-2 rounded-full transition-all ${
+                    subscriptionStatus.usageRemaining === 0 
+                      ? 'bg-gradient-to-r from-red-500 to-orange-500' 
+                      : subscriptionStatus.usageRemaining === 1
+                      ? 'bg-gradient-to-r from-yellow-500 to-orange-500'
+                      : 'bg-gradient-to-r from-green-500 to-blue-500'
+                  }`}
                   style={{ 
-                    width: `${Math.max(0, Math.min(100, (subscriptionStatus.usageRemaining / subscriptionStatus.totalLimit) * 100))}%` 
+                    width: `${Math.max(0, Math.min(100, ((subscriptionStatus.totalLimit - subscriptionStatus.usageRemaining) / subscriptionStatus.totalLimit) * 100))}%` 
                   }}
                 />
               </div>

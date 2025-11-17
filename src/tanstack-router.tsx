@@ -5,6 +5,8 @@ import SignUpPage from './components/SignUpPage'
 import SignInPage from './components/SignInPage'
 import OnboardingPage from './components/OnboardingPage'
 import FeedPage from './components/FeedPage'
+import LandingPage from './components/LandingPage'
+import DebugAIUsage from './components/DebugAIUsage'
 
 // Root route
 const rootRoute = createRootRoute({
@@ -24,7 +26,7 @@ function LoadingSpinner() {
   )
 }
 
-// Index route (/) - redirects based on auth and onboarding
+// Index route (/) - Shows landing page for non-authenticated users
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
@@ -41,7 +43,7 @@ const indexRoute = createRoute({
         return <Navigate to="/onboarding" replace />
       }
     } else {
-      return <Navigate to="/signup" replace />
+      return <LandingPage />
     }
   },
 })
@@ -181,6 +183,13 @@ const savedRoute = createRoute({
   },
 })
 
+// Debug route (for testing AI usage)
+const debugRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/debug-ai',
+  component: DebugAIUsage,
+})
+
 // Create the route tree
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -189,6 +198,7 @@ const routeTree = rootRoute.addChildren([
   onboardingRoute,
   feedRoute,
   savedRoute,
+  debugRoute,
 ])
 
 // Create the router

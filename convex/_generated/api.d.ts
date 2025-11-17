@@ -12,6 +12,7 @@ import type * as aiUsage from "../aiUsage.js";
 import type * as autumn from "../autumn.js";
 import type * as autumnAI from "../autumnAI.js";
 import type * as billing from "../billing.js";
+import type * as debug from "../debug.js";
 import type * as queries from "../queries.js";
 import type * as users from "../users.js";
 
@@ -34,6 +35,7 @@ declare const fullApi: ApiFromModules<{
   autumn: typeof autumn;
   autumnAI: typeof autumnAI;
   billing: typeof billing;
+  debug: typeof debug;
   queries: typeof queries;
   users: typeof users;
 }>;

@@ -100,15 +100,22 @@ export const getSubscriptionStatus = action({
     };
   }> => {
     try {
-      console.log('[Autumn] Checking subscription for user:', userId);
+      console.log('[Billing] Checking subscription for user:', userId);
       
-      // Get AI usage data
+      // Get AI usage data from the database
       const aiUsage: { count: number; limit: number } = await ctx.runQuery(internal.billing.getAiUsageInternal, { userId });
+      
+      console.log('[Billing] AI Usage:', {
+        count: aiUsage.count,
+        limit: aiUsage.limit,
+        userId
+      });
+      
+      // Calculate remaining usage
       const usageRemaining = Math.max(0, aiUsage.limit - aiUsage.count);
       
-      // For now, let's start with a simple approach and always return free
-      // until we understand exactly what data structure Autumn returns
-      // This prevents the API errors while we test the checkout flow
+      // For now, we're implementing a free tier system
+      // Later, you can integrate with Autumn to check for paid subscriptions
       
       return {
         success: true,
@@ -121,18 +128,21 @@ export const getSubscriptionStatus = action({
         }
       };
 
-      // TODO: Once checkout works, we can implement proper status checking
-      // We'll need to understand Autumn's API structure better
+      // TODO: Once checkout works, you can implement proper Autumn subscription checking here
+      // const autumn = getAutumn();
+      // const subscriptionData = await autumn.getCustomer({ customer_id: userId });
+      // Then return the actual subscription status based on Autumn's response
     } catch (error) {
-      console.error('[Autumn] Failed to get subscription status:', error);
-      // Always return free plan on error
+      console.error('[Billing] Failed to get subscription status:', error);
+      
+      // On error, try to get AI usage directly or return default free tier
       return {
         success: true,
         subscription: {
           isActive: false,
           planType: 'free',
           status: 'inactive',
-          usageRemaining: 2,
+          usageRemaining: 2, // Default free tier
           totalLimit: 2,
         }
       };
