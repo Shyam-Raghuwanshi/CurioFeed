@@ -44,6 +44,8 @@ export default function FeedPage() {
   const trackEngagement = useMutation(api.users.trackEngagement);
   const savePost = useMutation(api.users.savePost);
   const unsavePost = useMutation(api.users.unsavePost);
+  const dislikePost = useMutation(api.users.dislikePost);
+  const undislikePost = useMutation(api.users.undislikePost);
   const getUserSavedPosts = useQuery(api.queries.getUserSavedPosts,
     user?.id ? { userId: user.id } : "skip"
   );
@@ -216,9 +218,40 @@ export default function FeedPage() {
   };
 
   // Handle post dislike (placeholder for future implementation)
-  const handleDislikePost = async (url: string) => {
-    console.log('Post disliked:', url);
-    // TODO: Implement dislike functionality
+  const handleDislikePost = async (url: string, title: string, source: string) => {
+    if (!user?.id) return;
+    
+    try {
+      await dislikePost({
+        userId: user.id,
+        linkUrl: url,
+        title: title,
+        source: source,
+      });
+      
+      // TODO: Show success toast
+      // TODO: Remove from current feed or refresh feed to exclude disliked posts
+    } catch (error) {
+      console.error('Error disliking post:', error);
+      // TODO: Show error toast
+    }
+  };
+
+  // Handle post undislike
+  const handleUndislikePost = async (url: string) => {
+    if (!user?.id) return;
+    
+    try {
+      await undislikePost({
+        userId: user.id,
+        linkUrl: url,
+      });
+      
+      // TODO: Show success toast
+    } catch (error) {
+      console.error('Error undisliking post:', error);
+      // TODO: Show error toast
+    }
   };
 
   return (
@@ -260,6 +293,7 @@ export default function FeedPage() {
               onSave={handleSavePost}
               onUnsave={handleUnsavePost}
               onDislike={handleDislikePost}
+              onUndislike={handleUndislikePost}
             />
           )}
           

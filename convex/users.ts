@@ -376,6 +376,91 @@ export const unsavePost = mutation({
   },
 });
 
+// Dislike post
+export const dislikePost = mutation({
+  args: {
+    userId: v.string(),
+    linkUrl: v.string(),
+    title: v.string(),
+    source: v.string(),
+  },
+  handler: async (ctx, args) => {
+    try {
+      // Check if post is already disliked by this user
+      const existingDislikedPost = await ctx.db
+        .query("dislikedPosts")
+        .withIndex("by_user", (q) => q.eq("userId", args.userId))
+        .filter((q) => q.eq(q.field("linkUrl"), args.linkUrl))
+        .first();
+
+      if (existingDislikedPost) {
+        return {
+          _id: existingDislikedPost._id,
+          userId: existingDislikedPost.userId,
+          linkUrl: existingDislikedPost.linkUrl,
+          title: existingDislikedPost.title,
+          source: existingDislikedPost.source,
+          dislikedAt: existingDislikedPost.dislikedAt,
+          alreadyDisliked: true,
+        };
+      }
+
+      const dislikedAt = Date.now();
+      const dislikedPostId = await ctx.db.insert("dislikedPosts", {
+        userId: args.userId,
+        linkUrl: args.linkUrl,
+        title: args.title,
+        source: args.source,
+        dislikedAt,
+      });
+
+      // Return the disliked post object
+      return {
+        _id: dislikedPostId,
+        userId: args.userId,
+        linkUrl: args.linkUrl,
+        title: args.title,
+        source: args.source,
+        dislikedAt,
+        alreadyDisliked: false,
+      };
+    } catch (error) {
+      console.error("Error disliking post:", error);
+      throw new Error(`Failed to dislike post: ${error}`);
+    }
+  },
+});
+
+// Undislike post
+export const undislikePost = mutation({
+  args: {
+    userId: v.string(),
+    linkUrl: v.string(),
+  },
+  handler: async (ctx, args) => {
+    try {
+      // Find the disliked post
+      const dislikedPost = await ctx.db
+        .query("dislikedPosts")
+        .withIndex("by_user", (q) => q.eq("userId", args.userId))
+        .filter((q) => q.eq(q.field("linkUrl"), args.linkUrl))
+        .first();
+
+      if (!dislikedPost) {
+        throw new Error("Post not found in disliked posts");
+      }
+
+      // Delete the disliked post
+      await ctx.db.delete(dislikedPost._id);
+
+      return { success: true, message: "Post undisliked successfully" };
+    } catch (error) {
+      console.error("Error undisliking post:", error);
+      throw new Error(`Failed to undislike post: ${error}`);
+    }
+  },
+});
+
 // Check if post is saved by user
 export const isPostSaved = query({
   args: {
@@ -432,6 +517,18 @@ export const getUserSavedPosts = query({
     return await ctx.db
       .query("savedPosts")
       .withIndex("by_user_and_saved_at", (q) => q.eq("userId", args.userId))
+      .order("desc")
+      .collect();
+  },
+});
+
+// Get user's disliked posts
+export const getUserDislikedPosts = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("dislikedPosts")
+      .withIndex("by_user_and_disliked_at", (q) => q.eq("userId", args.userId))
       .order("desc")
       .collect();
   },

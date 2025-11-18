@@ -26,10 +26,12 @@ export interface FeedCardProps {
   interest: string;
   userId: string;
   isSaved?: boolean;
+  isDisliked?: boolean;
   onEngagement?: (data: EngagementData) => void;
   onSave?: (url: string, title: string) => Promise<void>;
   onUnsave?: (url: string) => Promise<void>;
-  onDislike?: (url: string) => void;
+  onDislike?: (url: string, title: string, source: string) => void;
+  onUndislike?: (url: string) => void;
 }
 
 export interface EngagementData {
@@ -49,10 +51,12 @@ const FeedCard: React.FC<FeedCardProps> = ({
   interest,
   userId,
   isSaved: initialSavedState = false,
+  isDisliked: initialDislikedState = false,
   onEngagement,
   onSave,
   onUnsave,
   onDislike,
+  onUndislike,
 }) => {
   const makePerplexityRequest = useAction(api.autumnAI.makePerplexityRequest);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -62,6 +66,8 @@ const FeedCard: React.FC<FeedCardProps> = ({
   const [hasScrolled, setHasScrolled] = useState(false);
   const [isSaved, setIsSaved] = useState(initialSavedState);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDisliked, setIsDisliked] = useState(initialDislikedState);
+  const [isDisliking, setIsDisliking] = useState(false);
   
   // AI dropdown state
   const [showAIDropdown, setShowAIDropdown] = useState(false);
@@ -258,16 +264,36 @@ const FeedCard: React.FC<FeedCardProps> = ({
     }
   }, [timer, hasScrolled, handleEngagementLog, url, title, isSaved, isSaving, onSave, onUnsave]);
 
-  const handleDislike = useCallback(() => {
-    if (timer) {
-      const timeSpent = stopEngagementTimer(timer);
-      handleEngagementLog(timeSpent, hasScrolled, 'not-interested');
-      setTimer(null); // Reset timer after action
+  const handleDislike = useCallback(async () => {
+    if (isDisliking) return;
+    
+    setIsDisliking(true);
+    try {
+      if (timer) {
+        const timeSpent = stopEngagementTimer(timer);
+        handleEngagementLog(timeSpent, hasScrolled, 'not-interested');
+        setTimer(null); // Reset timer after action
+      }
+      
+      if (isDisliked) {
+        // Undislike the post
+        if (onUndislike) {
+          onUndislike(url);
+        }
+        setIsDisliked(false);
+      } else {
+        // Dislike the post
+        if (onDislike) {
+          onDislike(url, title, source);
+        }
+        setIsDisliked(true);
+      }
+    } catch (error) {
+      console.error('Error toggling dislike state:', error);
+    } finally {
+      setIsDisliking(false);
     }
-    if (onDislike) {
-      onDislike(url);
-    }
-  }, [timer, hasScrolled, handleEngagementLog, url, onDislike]);
+  }, [timer, hasScrolled, handleEngagementLog, url, title, source, isDisliked, isDisliking, onDislike, onUndislike]);
 
   // AI feature handlers
   const handleAIFeature = useCallback(async (featureKey: AIFeatureType, featureName: string) => {
@@ -441,10 +467,15 @@ const FeedCard: React.FC<FeedCardProps> = ({
 
           <button
             onClick={handleDislike}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors duration-200 flex-1 justify-center text-sm font-medium"
+            disabled={isDisliking}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md transition-colors duration-200 flex-1 justify-center text-sm font-medium ${
+              isDisliked
+                ? 'bg-red-600 text-white hover:bg-red-700' 
+                : 'bg-gray-600 text-white hover:bg-gray-700'
+            } ${isDisliking ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <ThumbsDown size={16} />
-            Not interested
+            {isDisliking ? 'Processing...' : (isDisliked ? 'Disliked' : 'Not interested')}
           </button>
         </div>
 

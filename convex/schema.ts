@@ -36,6 +36,17 @@ export default defineSchema({
     .index("by_user_and_saved_at", ["userId", "savedAt"])
     .index("by_link_url", ["linkUrl"]),
 
+  dislikedPosts: defineTable({
+    userId: v.string(), // Reference to users.userId
+    linkUrl: v.string(), // URL of the disliked post
+    title: v.string(), // Title of the disliked post
+    source: v.string(), // Source domain/website
+    dislikedAt: v.number(), // Timestamp when post was disliked
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_disliked_at", ["userId", "dislikedAt"])
+    .index("by_link_url", ["linkUrl"]),
+
   feedCache: defineTable({
     interest: v.string(),
     title: v.string(),

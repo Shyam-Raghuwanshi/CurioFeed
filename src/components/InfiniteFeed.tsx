@@ -31,7 +31,8 @@ export interface InfiniteFeedProps {
   onEngagement: (data: EngagementData) => void;
   onSave: (url: string, title: string) => Promise<void>;
   onUnsave?: (url: string) => Promise<void>;
-  onDislike: (url: string) => void;
+  onDislike: (url: string, title: string, source: string) => void;
+  onUndislike?: (url: string) => void;
 }
 
 const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
@@ -42,9 +43,13 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
   onSave,
   onUnsave,
   onDislike,
+  onUndislike,
 }) => {
   // Get user's saved posts to check which cards are saved
   const userSavedPosts = useQuery(api.queries.getUserSavedPosts, { userId });
+  
+  // Get user's disliked posts to filter them out
+  const userDislikedPosts = useQuery(api.users.getUserDislikedPosts, { userId });
   
   // Use the infinite feed hook
   const { 
@@ -179,33 +184,38 @@ const InfiniteFeed: React.FC<InfiniteFeedProps> = ({
       {/* Feed Cards */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-1">
         {feedData.map((card: SmartFeedResult, index: number) => {
-          const isLastCard = index === feedData.length - 1;
-          
-          // Check if this card is saved by the user
-          const isSaved = userSavedPosts?.some(savedPost => savedPost.linkUrl === card.url) || false;
-          
-          return (
-            <div
-              key={`${card.url}-${index}`}
-              ref={isLastCard ? lastCardElementRef : null}
-            >
-              <FeedCard
-                title={card.title}
-                url={card.url}
-                source={card.source}
-                excerpt={card.excerpt}
-                imageUrl={card.imageUrl}
-                interest={currentInterest}
-                userId={userId}
-                isSaved={isSaved}
-                onEngagement={onEngagement}
-                onSave={onSave}
-                onUnsave={onUnsave}
-                onDislike={onDislike}
-              />
-            </div>
-          );
-        })}
+            const isLastCard = index === feedData.length - 1;
+            
+            // Check if this card is saved by the user
+            const isSaved = userSavedPosts?.some(savedPost => savedPost.linkUrl === card.url) || false;
+            
+            // Check if this card is disliked by the user
+            const isDisliked = userDislikedPosts?.some(dislikedPost => dislikedPost.linkUrl === card.url) || false;
+            
+            return (
+              <div
+                key={`${card.url}-${index}`}
+                ref={isLastCard ? lastCardElementRef : null}
+              >
+                <FeedCard
+                  title={card.title}
+                  url={card.url}
+                  source={card.source}
+                  excerpt={card.excerpt}
+                  imageUrl={card.imageUrl}
+                  interest={currentInterest}
+                  userId={userId}
+                  isSaved={isSaved}
+                  isDisliked={isDisliked}
+                  onEngagement={onEngagement}
+                  onSave={onSave}
+                  onUnsave={onUnsave}
+                  onDislike={onDislike}
+                  onUndislike={onUndislike}
+                />
+              </div>
+            );
+          })}
       </div>
 
       {/* Loading More State */}
